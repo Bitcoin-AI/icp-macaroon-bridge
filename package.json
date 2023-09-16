@@ -2,18 +2,22 @@
     "name": "icp-macaroon-bridge",
     "version": "1.0.0",
     "main": "index.js",
+    "type": "module",
     "scripts": {
         "start": "node index.js",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
     "dependencies": {
-        "express": "^4.17.1",
-        "request": "^2.88.2",
+        "buffer": "^6.0.3",
+        "dotenv": "^10.0.0",
         "ethers": "^5.4.6",
-        "dotenv": "^10.0.0"
+        "express": "^4.18.2",
+        "nostr-tools": "^1.15.0",
+        "request": "^2.88.2",
+        "websocket-polyfill": "^0.0.3"
     },
     "engines": {
-        "node": "14.x"
+        "node": "19.x"
     },
     "license": "ISC",
     "description": "A bridge service to facilitate payments between ICP and other services using macaroons"

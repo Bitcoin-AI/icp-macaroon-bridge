@@ -56,19 +56,38 @@ app.get('/', (req, res) => {
 app.post('/', async (req, res) => {
   try{
     // Verify if request comes from icp canister
-    const signature = req.header?.signature;
-    const message = req.body?.payment_request;
-    if(!signature || !message){
-      res.send("Signature and message required");
-      return;
-    }
-    const address = ethers.utils.verifyMessage( message , signature );
+    const signatureBase = "0x" + req.headers.signature;
+    const message = req.body.payment_request;
 
-    if(address.toLowerCase() != process.env.CANISTER_ADDRESS.toLowerCase()){
-      res.send("Invalid signature");
-      return;
+    const messageHash = ethers.utils.keccak256(Buffer.from(message));
+
+    const expectedAddress = process.env.CANISTER_ADDRESS.toLowerCase();
+
+    // Try both possible v values for chain ID 31
+    const vValues = ['59', '5a'];
+    let isValidSignature = false;
+    let recoveredAddress;
+
+    vValues.forEach(v => {
+        try {
+            const fullSignature = signatureBase + v;
+            recoveredAddress = ethers.utils.recoverAddress(messageHash, ethers.utils.splitSignature(fullSignature));
+            if (recoveredAddress.toLowerCase() === expectedAddress) {
+                isValidSignature = true;
+            }
+        } catch (error) {
+            console.error(`Error recovering address with v = 0x${v}:`, error);
+        }
+    });
+
+    if (!isValidSignature) {
+        console.log("address: ", recoveredAddress.toLowerCase());
+        res.send("Invalid signature");
+        return;
     }
 
+
+    // Hash signature and store in nostr to check
     const signHash = ethers.utils.sha256(Buffer.from(signature))
     const previousEvent = await pool.get(relays, {
       kinds: [1],
@@ -82,6 +101,8 @@ app.post('/', async (req, res) => {
       res.send("Invoice already payed");
       return;
     }
+
+    // Pay Invoice and store hash of signature at nostr
 
     let options = {
       url: `https://${process.env.REST_HOST}/v2/router/send`,
@@ -124,6 +145,6 @@ app.post('/', async (req, res) => {
 });
 
 
-app.listen(8085,() => {
-  console.log("Service initiated at port 8085")
+app.listen(process.env.PORT ? process.env.PORT : 8080,() => {
+  console.log(`Service initiated at port ${process.env.PORT ? process.env.PORT : 8080}`)
 });

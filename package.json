@@ -1,0 +1,20 @@
+{
+    "name": "icp-macaroon-bridge",
+    "version": "1.0.0",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "dependencies": {
+        "express": "^4.17.1",
+        "request": "^2.88.2",
+        "ethers": "^5.4.6",
+        "dotenv": "^10.0.0"
+    },
+    "engines": {
+        "node": "14.x"
+    },
+    "license": "ISC",
+    "description": "A bridge service to facilitate payments between ICP and other services using macaroons"
+}

@@ -16,8 +16,6 @@ import {
 dotenv.config();
 const app = express();
 
-const sk = process.env.NOSTR_SK;
-const pk = getPublicKey(sk);
 
 const relays = [
   'wss://relay.damus.io',
@@ -55,6 +53,11 @@ app.get('/', (req, res) => {
 // Post to pay invoice to user, verify conditions firts (must come from canister)
 app.post('/', async (req, res) => {
   try{
+
+
+    
+    const sk = process.env.NOSTR_SK;
+    const pk = getPublicKey(sk);
     // Verify if request comes from icp canister
     const signatureBase = "0x" + req.headers.signature;
     const message = req.body.payment_request;

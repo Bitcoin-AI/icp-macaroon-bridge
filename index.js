@@ -1,8 +1,8 @@
 import express from 'express';
 import request from 'request';
-import {ethers} from 'ethers'
+import { ethers } from 'ethers'
 import * as dotenv from 'dotenv';
-import {Buffer} from 'buffer';
+import { Buffer } from 'buffer';
 import {
   SimplePool,
   nip19,
@@ -10,11 +10,14 @@ import {
   getPublicKey,
   getEventHash,
   getSignature
- } from 'nostr-tools'
- import 'websocket-polyfill'
+} from 'nostr-tools'
+import 'websocket-polyfill'
 
-dotenv.config();
+dotenv.config({ path: './.env' });
 const app = express();
+
+app.use(express.json());
+
 
 
 const relays = [
@@ -30,7 +33,7 @@ const pool = new SimplePool()
 
 // Test Route
 app.get('/', (req, res) => {
-  try{
+  try {
     let options = {
       url: `https://${process.env.REST_HOST}/v1/getinfo`,
       // Work-around for self-signed certificates.
@@ -40,10 +43,10 @@ app.get('/', (req, res) => {
         'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
       },
     }
-    request.get(options, function(error, response, body) {
+    request.get(options, function (error, response, body) {
       res.json(body)
     });
-  } catch(err){
+  } catch (err) {
     res.json(err)
   }
   return;
@@ -52,11 +55,13 @@ app.get('/', (req, res) => {
 
 // Post to pay invoice to user, verify conditions firts (must come from canister)
 app.post('/', async (req, res) => {
-  try{
+  try {
 
 
-    
+
     const sk = process.env.NOSTR_SK;
+
+
     const pk = getPublicKey(sk);
     // Verify if request comes from icp canister
     const signatureBase = "0x" + req.headers.signature;
@@ -72,35 +77,38 @@ app.post('/', async (req, res) => {
     let recoveredAddress;
 
     vValues.forEach(v => {
-        try {
-            const fullSignature = signatureBase + v;
-            recoveredAddress = ethers.utils.recoverAddress(messageHash, ethers.utils.splitSignature(fullSignature));
-            if (recoveredAddress.toLowerCase() === expectedAddress) {
-                isValidSignature = true;
-            }
-        } catch (error) {
-            console.error(`Error recovering address with v = 0x${v}:`, error);
+      try {
+        const fullSignature = signatureBase + v;
+        recoveredAddress = ethers.utils.recoverAddress(messageHash, ethers.utils.splitSignature(fullSignature));
+        console.log("address: ", recoveredAddress.toLowerCase());
+
+        if (recoveredAddress.toLowerCase() === expectedAddress) {
+
+          isValidSignature = true;
         }
+      } catch (error) {
+        console.error(`Error recovering address with v = 0x${v}:`, error);
+      }
     });
 
     if (!isValidSignature) {
-        console.log("address: ", recoveredAddress.toLowerCase());
-        res.send("Invalid signature");
-        return;
+
+      res.send("Invalid signature");
+      return;
     }
 
 
     // Hash signature and store in nostr to check
-    const signHash = ethers.utils.sha256(Buffer.from(signature))
+    // const signHash = ethers.utils.sha256(Buffer.from(signature))
     const previousEvent = await pool.get(relays, {
       kinds: [1],
       authors: [pk],
       tags: [
-        ['signature',signHash]
+        ['signature', signatureBase]
       ]
     });
     console.log(previousEvent)
-    if(previousEvent){
+    if (previousEvent) {
       res.send("Invoice already payed");
       return;
     }
@@ -122,7 +130,7 @@ app.post('/', async (req, res) => {
       ),
     }
 
-    request.post(options, async function(error, response, body) {
+    request.post(options, async function (error, response, body) {
       // Save hashed signature at nostr kind 1 (short text note)
       let event = {
         kind: 1,
@@ -141,13 +149,14 @@ app.post('/', async (req, res) => {
       return;
     });
 
-  } catch(err){
+  } catch (err) {
+    console.log("ERROR:", err);
     res.json(err)
   }
   return;
 });
 
 
-app.listen(process.env.PORT ? process.env.PORT : 8080,() => {
+app.listen(process.env.PORT ? process.env.PORT : 8080, () => {
   console.log(`Service initiated at port ${process.env.PORT ? process.env.PORT : 8080}`)
 });

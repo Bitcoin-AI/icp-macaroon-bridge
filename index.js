@@ -57,18 +57,18 @@ app.get('/', (req, res) => {
 app.post('/', async (req, res) => {
   try {
 
-    /*
+
     const sk = process.env.NOSTR_SK;
 
     const pk = getPublicKey(sk);
-    */
+
     // Verify if request comes from icp canister
 
-    const signatureBase = "0x" + req.headers.signature;
+    //const signatureBase = "0x" + req.headers.signature;
     const message = req.body.payment_request;
 
     const messageHash = ethers.utils.keccak256(Buffer.from(message));
-
+    
     // Define a list of expected addresses
     const expectedAddresses = [
       '0x492d553f456231c67dcd4a0f3603b3b1f2918a95'.toLowerCase(),
@@ -103,22 +103,22 @@ app.post('/', async (req, res) => {
       return;
     }
 
-    //const signatureBase = "test4"
-    /*
-    const signHash = ethers.utils.sha256(Buffer.from(signatureBase))
+
     const previousEvent = await pool.get(relays,
         {
           kinds: [1],
           authors: [pk],
-          '#t': [signHash]
+          '#t': [messageHash]
         }
     );
     console.log(previousEvent)
     if (previousEvent) {
-      res.send("Invoice already payed");
+      res.json({
+        message: "Invoice already payed"
+      });
       return;
     }
-    */
+
 
 
     // Pay Invoice and store hash of signature at nostr
@@ -132,28 +132,35 @@ app.post('/', async (req, res) => {
         'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
       },
       body: {
-          payment_request: message
-      },
+          payment_request: message,
+          timeout_seconds: 300,
+          fee_limit_sat: 100
+      }
     }
 
     request.post(options, async function (error, response, body) {
-      // Save hashed signature at nostr kind 1 (short text note)
-      /*
+      if(error){
+        res.json(error);
+        return;
+      }
+      console.log(body)
+
+      // Save invoice at nostr kind 1 (short text note)
+
       let event = {
         kind: 1,
         pubkey: pk,
         created_at: Math.floor(Date.now() / 1000),
         tags: [
-          ['t',signHash],
-          ['signatureHash', signHash]
+          ['t',messageHash]
         ],
-        content: signHash
+        content: `Payed ${message}`
       }
 
       event.id = getEventHash(event);
       event.sig = getSignature(event, sk);
       let pubs = pool.publish(relays, event);
-      */
+
       res.json(body);
       return;
     });

@@ -58,47 +58,48 @@ app.post('/', async (req, res) => {
   try {
 
 
-
     const sk = process.env.NOSTR_SK;
-
 
     const pk = getPublicKey(sk);
     // Verify if request comes from icp canister
     const signatureBase = "0x" + req.headers.signature;
     const message = req.body.payment_request;
-
+    
     const messageHash = ethers.utils.keccak256(Buffer.from(message));
-
-    const expectedAddress = process.env.CANISTER_ADDRESS.toLowerCase();
-
+    
+    // Define a list of expected addresses
+    const expectedAddresses = [
+      '0x492d553f456231c67dcd4a0f3603b3b1f2918a95'.toLowerCase(),
+      '0xc5acf85fedb04cc84789e5d84c0dfcb74388c157'.toLowerCase(),
+      '0xeafdc02a5341a7b2542056a85b77a8db09a71fe9'.toLowerCase()
+      // ... add more addresses as needed
+    ];
+    
     // Try both possible v values for chain ID 31
     const vValues = ['59', '5a'];
     let isValidSignature = false;
     let recoveredAddress;
-
+    
     vValues.forEach(v => {
       try {
         const fullSignature = signatureBase + v;
         recoveredAddress = ethers.utils.recoverAddress(messageHash, ethers.utils.splitSignature(fullSignature));
         console.log("address: ", recoveredAddress.toLowerCase());
-
-        if (recoveredAddress.toLowerCase() === expectedAddress) {
-
+    
+        if (expectedAddresses.includes(recoveredAddress.toLowerCase())) {
           isValidSignature = true;
         }
       } catch (error) {
         console.error(`Error recovering address with v = 0x${v}:`, error);
       }
     });
-
+    
     if (!isValidSignature) {
-
       res.send("Invalid signature");
       return;
     }
+    
 
-
-    // Hash signature and store in nostr to check
     // const signHash = ethers.utils.sha256(Buffer.from(signature))
     const previousEvent = await pool.get(relays, {
       kinds: [1],

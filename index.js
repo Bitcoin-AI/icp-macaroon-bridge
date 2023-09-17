@@ -64,11 +64,11 @@ app.post('/', async (req, res) => {
 
     // Verify if request comes from icp canister
 
-    //const signatureBase = "0x" + req.headers.signature;
+    const signatureBase = "0x" + req.headers.signature;
     const message = req.body.payment_request;
 
     const messageHash = ethers.utils.keccak256(Buffer.from(message));
-    
+
     // Define a list of expected addresses
     const expectedAddresses = [
       '0x492d553f456231c67dcd4a0f3603b3b1f2918a95'.toLowerCase(),

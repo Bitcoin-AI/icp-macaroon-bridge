@@ -22,11 +22,11 @@ app.use(express.json());
 
 const relays = [
   'wss://relay.damus.io',
-  'wss://eden.nostr.land',
-  'wss://nostr-pub.wellorder.net',
-  'wss://relay.nostr.info',
-  'wss://relay.snort.social',
-  'wss://nostr-01.bolt.observer'
+  //'wss://eden.nostr.land',
+  //'wss://nostr-pub.wellorder.net',
+  //'wss://relay.nostr.info',
+  //'wss://relay.snort.social',
+  //'wss://nostr-01.bolt.observer'
 ]
 
 const pool = new SimplePool()
@@ -62,11 +62,12 @@ app.post('/', async (req, res) => {
 
     const pk = getPublicKey(sk);
     // Verify if request comes from icp canister
+    
     const signatureBase = "0x" + req.headers.signature;
     const message = req.body.payment_request;
-    
+
     const messageHash = ethers.utils.keccak256(Buffer.from(message));
-    
+
     // Define a list of expected addresses
     const expectedAddresses = [
       '0x492d553f456231c67dcd4a0f3603b3b1f2918a95'.toLowerCase(),
@@ -74,18 +75,18 @@ app.post('/', async (req, res) => {
       '0xeafdc02a5341a7b2542056a85b77a8db09a71fe9'.toLowerCase()
       // ... add more addresses as needed
     ];
-    
+
     // Try both possible v values for chain ID 31
     const vValues = ['59', '5a'];
     let isValidSignature = false;
     let recoveredAddress;
-    
+
     vValues.forEach(v => {
       try {
         const fullSignature = signatureBase + v;
         recoveredAddress = ethers.utils.recoverAddress(messageHash, ethers.utils.splitSignature(fullSignature));
         console.log("address: ", recoveredAddress.toLowerCase());
-    
+
         if (expectedAddresses.includes(recoveredAddress.toLowerCase())) {
           isValidSignature = true;
         }
@@ -93,26 +94,27 @@ app.post('/', async (req, res) => {
         console.error(`Error recovering address with v = 0x${v}:`, error);
       }
     });
-    
+
     if (!isValidSignature) {
       res.send("Invalid signature");
       return;
     }
-    
 
-    // const signHash = ethers.utils.sha256(Buffer.from(signature))
-    const previousEvent = await pool.get(relays, {
-      kinds: [1],
-      authors: [pk],
-      tags: [
-        ['signature', signatureBase]
-      ]
-    });
+    //const signatureBase = "test4"
+    const signHash = ethers.utils.sha256(Buffer.from(signatureBase))
+    const previousEvent = await pool.get(relays,
+        {
+          kinds: [1],
+          authors: [pk],
+          '#t': [signHash]
+        }
+    );
     console.log(previousEvent)
     if (previousEvent) {
       res.send("Invoice already payed");
       return;
     }
+
 
     // Pay Invoice and store hash of signature at nostr
 
@@ -138,7 +140,8 @@ app.post('/', async (req, res) => {
         pubkey: pk,
         created_at: Math.floor(Date.now() / 1000),
         tags: [
-          ['signature', signHash]
+          ['t',signHash],
+          ['signatureHash', signHash]
         ],
         content: signHash
       }
@@ -146,9 +149,12 @@ app.post('/', async (req, res) => {
       event.id = getEventHash(event);
       event.sig = getSignature(event, sk);
       let pubs = pool.publish(relays, event);
+
       res.json(body);
       return;
     });
+
+
 
   } catch (err) {
     console.log("ERROR:", err);

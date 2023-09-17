@@ -57,12 +57,13 @@ app.get('/', (req, res) => {
 app.post('/', async (req, res) => {
   try {
 
-
+    /*
     const sk = process.env.NOSTR_SK;
 
     const pk = getPublicKey(sk);
+    */
     // Verify if request comes from icp canister
-    
+
     const signatureBase = "0x" + req.headers.signature;
     const message = req.body.payment_request;
 
@@ -96,11 +97,14 @@ app.post('/', async (req, res) => {
     });
 
     if (!isValidSignature) {
-      res.send("Invalid signature");
+      res.json({
+        message: "Invalid signature"
+      });
       return;
     }
 
     //const signatureBase = "test4"
+    /*
     const signHash = ethers.utils.sha256(Buffer.from(signatureBase))
     const previousEvent = await pool.get(relays,
         {
@@ -114,6 +118,7 @@ app.post('/', async (req, res) => {
       res.send("Invoice already payed");
       return;
     }
+    */
 
 
     // Pay Invoice and store hash of signature at nostr
@@ -126,15 +131,14 @@ app.post('/', async (req, res) => {
       headers: {
         'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
       },
-      body: JSON.stringify(
-        {
+      body: {
           payment_request: message
-        }
-      ),
+      },
     }
 
     request.post(options, async function (error, response, body) {
       // Save hashed signature at nostr kind 1 (short text note)
+      /*
       let event = {
         kind: 1,
         pubkey: pk,
@@ -149,7 +153,7 @@ app.post('/', async (req, res) => {
       event.id = getEventHash(event);
       event.sig = getSignature(event, sk);
       let pubs = pool.publish(relays, event);
-
+      */
       res.json(body);
       return;
     });

@@ -52,6 +52,45 @@ app.get('/', (req, res) => {
   return;
 });
 
+// Post to pay invoice to user, verify conditions firts (must come from canister)
+app.get('/v1/payreq/:payment_request', async (req, res) => {
+  try {
+
+
+    // Verify if request comes from icp canister
+
+    //const signatureBase = "0x" + req.headers.signature;
+    const payment_request = req.params.payment_request;
+
+    let options = {
+      url: `https://${process.env.REST_HOST}/v1/payreq/${payment_request}`,
+      // Work-around for self-signed certificates.
+      rejectUnauthorized: false,
+      json: true,
+      headers: {
+        'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
+      }
+    }
+
+    request.get(options, async function (error, response, body) {
+      console.log(body)
+      if(error){
+        res.json(error);
+        return;
+      }
+      res.json(body);
+      return;
+    });
+
+
+
+  } catch (err) {
+    console.log("ERROR:", err);
+    res.status(500).json(err)
+  }
+  return;
+});
+
 
 // Post to pay invoice to user, verify conditions firts (must come from canister)
 app.post('/', async (req, res) => {
@@ -114,7 +153,7 @@ app.post('/', async (req, res) => {
     console.log(previousEvent)
     if (previousEvent) {
       res.json({
-        message: "Invoice already payed"
+        message: "Invoice already paid"
       });
       return;
     }
@@ -154,7 +193,7 @@ app.post('/', async (req, res) => {
         tags: [
           ['t',messageHash]
         ],
-        content: `Payed ${message}`
+        content: `Paid ${message}`
       }
 
       event.id = getEventHash(event);

@@ -52,7 +52,6 @@ app.get('/', (req, res) => {
   return;
 });
 
-// Post to pay invoice to user, verify conditions firts (must come from canister)
 app.get('/v1/payreq/:payment_request', async (req, res) => {
   try {
 
@@ -90,6 +89,83 @@ app.get('/v1/payreq/:payment_request', async (req, res) => {
   }
   return;
 });
+
+app.post('/v1/invoices', async (req, res) => {
+  try {
+
+
+    // Verify if request comes from icp canister
+
+    //const signatureBase = "0x" + req.headers.signature;
+
+    let options = {
+      url: `https://${process.env.REST_HOST}/v1/invoices`,
+      // Work-around for self-signed certificates.
+      rejectUnauthorized: false,
+      json: true,
+      headers: {
+        'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
+      },
+      body: req.body
+    }
+
+    request.post(options, async function (error, response, body) {
+      console.log(body)
+      if(error){
+        res.json(error);
+        return;
+      }
+      res.json(body);
+      return;
+    });
+
+
+
+  } catch (err) {
+    console.log("ERROR:", err);
+    res.status(500).json(err)
+  }
+  return;
+});
+
+app.post('/v2/invoices/lookup', async (req, res) => {
+  try {
+
+
+    // Verify if request comes from icp canister
+
+    //const signatureBase = "0x" + req.headers.signature;
+    const payment_hash = req.query.payment_hash;
+    let options = {
+      url: `https://${process.env.REST_HOST}/v2/invoices/lookup?payment_hash=${payment_hash}`,
+      // Work-around for self-signed certificates.
+      rejectUnauthorized: false,
+      json: true,
+      headers: {
+        'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
+      }
+    }
+
+    request.get(options, async function (error, response, body) {
+      console.log(body)
+      if(error){
+        res.json(error);
+        return;
+      }
+      res.json(body);
+      return;
+    });
+
+
+
+  } catch (err) {
+    console.log("ERROR:", err);
+    res.status(500).json(err)
+  }
+  return;
+});
+
+
 
 
 // Post to pay invoice to user, verify conditions firts (must come from canister)

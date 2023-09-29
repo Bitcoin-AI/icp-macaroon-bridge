@@ -24,15 +24,7 @@ const app = express();
 app.use(express.json());
 
 
-const relays = [
-  'wss://relay.damus.io',
-  //'wss://eden.nostr.land',
-  //'wss://nostr-pub.wellorder.net',
-  //'wss://relay.nostr.info',
-  //'wss://relay.snort.social',
-  //'wss://nostr-01.bolt.observer'
-]
-
+const relays = JSON.parse(process.env.RELAYS)
 const pool = new SimplePool()
 
 

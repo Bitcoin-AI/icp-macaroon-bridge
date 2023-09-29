@@ -1,6 +1,7 @@
 import express from 'express';
 import request from 'request';
 import { ethers } from 'ethers'
+import * as dotenv from 'dotenv';
 import { Buffer } from 'buffer';
 import {
   SimplePool,
@@ -12,16 +13,11 @@ import {
 } from 'nostr-tools'
 import 'websocket-polyfill'
 
-
-
-import dotenv from 'dotenv';
-
-
-
 dotenv.config({ path: './.env' });
 const app = express();
 
 app.use(express.json());
+
 
 
 const relays = [
@@ -36,18 +32,37 @@ const relays = [
 const pool = new SimplePool()
 
 
+const checkIdempotencyKey = (req,res,next) => {
+  const idempotencyKey = req.headers['idempotency-key'];
+  const messageHash = ethers.utils.keccak256(Buffer.from(idempotencyKey));
+  if (idempotencyKey) {
 
+    const idempotencyStore = await pool.get(relays,
+        {
+          kinds: [1],
+          authors: [pk],
+          '#t': [messageHash]
+        }
+    );
+    if (idempotencyStore) {
+      // If the idempotency key exists, return the stored response
+      return res.json(idempotencyStore);
+    } else {
+      // Capture the response to store it with the idempotency key
+      next();
+    }
+  }
+}
 
 const storeIdempotencyKey = async (messageHash,body) => {
   const sk = process.env.NOSTR_SK;
 
   const pk = getPublicKey(sk);
   let event = {
-    kind: 30078,
+    kind: 1,
     pubkey: pk,
     created_at: Math.floor(Date.now() / 1000),
     tags: [
-      ['d', 'icp-canister-bridge-test'],
       ['t',messageHash]
     ],
     content: JSON.stringfy(body)
@@ -58,33 +73,6 @@ const storeIdempotencyKey = async (messageHash,body) => {
   let pubs = pool.publish(relays, event);
   return
 }
-// Here to  store the response according to the indempotencyKey
-const checkIdempotencyKey = async (req,res,next) => {
-  const idempotencyKey = req.headers['idempotency-key'];
-  if (idempotencyKey) {
-
-    const idempotencyStore = await pool.get(relays,
-        {
-          kinds: [1],
-          authors: [pk],
-          '#t': [idempotencyKey]
-        }
-    );
-    if (idempotencyStore) {
-      // If the idempotency key exists, return the stored response
-      return res.json(idempotencyStore);
-    } else {
-      // Capture the response to store it with the idempotency key
-      next();
-    }
-  } else {
-    return res.json({
-      message: "No idempotency key at header"
-    })
-  }
-}
-app.use(checkIdempotencyKey);
-
 
 // Test Route
 app.get('/', (req, res) => {
@@ -107,10 +95,15 @@ app.get('/', (req, res) => {
   return;
 });
 
-app.get('/v1/payreq', async (req, res) => {
+app.use('/v1/payreq/:payment_request',checkIdempotencyKey);
+app.get('/v1/payreq/:payment_request', async (req, res) => {
   try {
-    // Verify if request comes from icp canister
+
+
     const idempotencyKey = req.headers['idempotency-key'];
+    const messageHash = ethers.utils.keccak256(Buffer.from(idempotencyKey));
+    // Verify if request comes from icp canister
+
     //const signatureBase = "0x" + req.headers.signature;
     const payment_request = req.params.payment_request;
 
@@ -126,11 +119,11 @@ app.get('/v1/payreq', async (req, res) => {
 
     request.get(options, async function (error, response, body) {
       console.log(body)
-      if (error) {
+      if(error){
         res.json(error);
         return;
       }
-      await storeIdempotencyKey(idempotencyKey,body);
+      await storeIdempotencyKey(messageHash,body);
       res.json(body);
       return;
     });
@@ -144,58 +137,61 @@ app.get('/v1/payreq', async (req, res) => {
   return;
 });
 
-app.post('/v1/invoices', (req, res) => {
 
-  const idempotencyKey = req.headers['idempotency-key'];
+app.use('/v1/invoices',checkIdempotencyKey);
+app.post('/v1/invoices', async (req, res) => {
+  try {
 
-  const { value: amount, memo: evm_addr } = req.body;  // Updated this line
 
-  // Validate that amount and evm_addr are defined
-  if (!amount || !evm_addr) {
-    res.status(400).json({ error: 'Both amount and evm_addr are required' });
-    return;
-  }
+    const idempotencyKey = req.headers['idempotency-key'];
+    const messageHash = ethers.utils.keccak256(Buffer.from(idempotencyKey));
 
-  // Validate the type of amount
-  if (typeof amount !== 'number' && typeof amount !== 'string') {
-    res.status(400).json({ error: 'Invalid type for amount' });
-    return;
-  }
+    // Verify if request comes from icp canister
 
-  const options = {
-    url: `https://${process.env.REST_HOST}/v1/invoices`,
-    rejectUnauthorized: false,
-    json: true,
-    headers: {
-      'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
-    },
-    body: {
-      value: amount.toString(),
-      memo: evm_addr,
+    //const signatureBase = "0x" + req.headers.signature;
+
+    let options = {
+      url: `https://${process.env.REST_HOST}/v1/invoices`,
+      // Work-around for self-signed certificates.
+      rejectUnauthorized: false,
+      json: true,
+      headers: {
+        'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
+      },
+      body: req.body
     }
-  };
 
-  request.post(options, async (error, response, body) => {
-    if (error) {
-      res.status(500).json(error);
+    request.post(options, async function (error, response, body) {
+      console.log(body)
+      if(error){
+        res.json(error);
+        return;
+      }
+
+      await storeIdempotencyKey(messageHash,body);
+      res.json(body);
       return;
-    }
-    await storeIdempotencyKey(idempotencyKey,body);
-    res.json(body);
-  });
+    });
+
+
+
+  } catch (err) {
+    console.log("ERROR:", err);
+    res.status(500).json(err)
+  }
+  return;
 });
 
-
-app.get('/v2/invoices/lookup', async (req, res) => {
+app.use('/v2/invoices/lookup',checkIdempotencyKey);
+app.post('/v2/invoices/lookup', async (req, res) => {
   try {
-    const payment_hash = req.query.payment_hash;
+
     const idempotencyKey = req.headers['idempotency-key'];
+    const messageHash = ethers.utils.keccak256(Buffer.from(idempotencyKey));
+    // Verify if request comes from icp canister
 
-    if (!payment_hash) {
-      res.status(400).send({ "error": "payment_hash is required" });
-      return;
-    }
-
+    //const signatureBase = "0x" + req.headers.signature;
+    const payment_hash = req.query.payment_hash;
     let options = {
       url: `https://${process.env.REST_HOST}/v2/invoices/lookup?payment_hash=${payment_hash}`,
       // Work-around for self-signed certificates.
@@ -208,48 +204,34 @@ app.get('/v2/invoices/lookup', async (req, res) => {
 
     request.get(options, async function (error, response, body) {
       console.log(body)
-      if (error) {
-        res.status(500).json(error);
+      if(error){
+        res.json(error);
         return;
       }
-      await storeIdempotencyKey(idempotencyKey,body);
+      await storeIdempotencyKey(messageHash,body);
       res.json(body);
       return;
     });
+
+
+
   } catch (err) {
     console.log("ERROR:", err);
-    res.status(500).json(err);
+    res.status(500).json(err)
   }
   return;
 });
 
 
-app.get('/v1/getinfo', (req, res) => {
-  const options = {
-    url: `https://${process.env.REST_HOST}/v1/getinfo`,
-    rejectUnauthorized: false,
-    json: true,
-    headers: {
-      'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
-    },
-  };
-
-  request.get(options, (error, response, body) => {
-    if (error) {
-      res.status(500).json(error);
-      return;
-    }
-    res.json(body);
-  });
-});
 
 
 // Post to pay invoice to user, verify conditions firts (must come from canister)
 app.post('/', async (req, res) => {
   try {
-    const idempotencyKey = req.headers['idempotency-key'];
+
 
     const sk = process.env.NOSTR_SK;
+
     const pk = getPublicKey(sk);
 
     // Verify if request comes from icp canister
@@ -295,11 +277,11 @@ app.post('/', async (req, res) => {
 
 
     const previousEvent = await pool.get(relays,
-      {
-        kinds: [1],
-        authors: [pk],
-        '#t': [messageHash]
-      }
+        {
+          kinds: [1],
+          authors: [pk],
+          '#t': [messageHash]
+        }
     );
     console.log(previousEvent)
     if (previousEvent) {
@@ -308,6 +290,8 @@ app.post('/', async (req, res) => {
       });
       return;
     }
+
+
 
     // Pay Invoice and store hash of signature at nostr
 
@@ -320,25 +304,27 @@ app.post('/', async (req, res) => {
         'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
       },
       body: {
-        payment_request: message,
-        timeout_seconds: 300,
-        fee_limit_sat: 100
+          payment_request: message,
+          timeout_seconds: 300,
+          fee_limit_sat: 100
       }
     }
 
     request.post(options, async function (error, response, body) {
-      if (error) {
+      if(error){
         res.json(error);
         return;
       }
       console.log(body)
+
+      // Save invoice at nostr kind 1 (short text note)
 
       let event = {
         kind: 1,
         pubkey: pk,
         created_at: Math.floor(Date.now() / 1000),
         tags: [
-          ['t', messageHash]
+          ['t',messageHash]
         ],
         content: `Paid ${message}`
       }
@@ -346,7 +332,6 @@ app.post('/', async (req, res) => {
       event.id = getEventHash(event);
       event.sig = getSignature(event, sk);
       let pubs = pool.publish(relays, event);
-      await storeIdempotencyKey(idempotencyKey,body);
 
       res.json(body);
       return;

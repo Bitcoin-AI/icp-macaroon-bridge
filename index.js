@@ -65,7 +65,7 @@ const checkIdempotencyKey = async (req,res,next) => {
 
     const idempotencyStore = await pool.get(relays,
         {
-          kinds: [1],
+          kinds: [30078],
           authors: [pk],
           '#t': [idempotencyKey]
         }

@@ -43,9 +43,9 @@ const storeIdempotencyKey = async (messageHash,body) => {
 
   const pk = getPublicKey(sk);
   const npub = nip19.npubEncode(pk)
-  console.log(`Using npub: ${npub} to store replaceable event kind 30078 with 'd' as 'icp-canister-bridge-test' and 't' as ${messageHash}`)
+  console.log(`Using npub: ${npub} to store event kind 1 with 'd' as 'icp-canister-bridge-test' and 't' as ${messageHash}`)
   let event = {
-    kind: 30078,
+    kind: 1,
     pubkey: pk,
     created_at: Math.floor(Date.now() / 1000),
     tags: [
@@ -72,7 +72,7 @@ const getIdempotencyStore = async (idempotencyKey) => {
   console.log(`Service using npub: ${npub}`);
   const idempotencyStore = await pool.get(relays,
       {
-        kinds: [30078],
+        kinds: [1],
         authors: [pk],
         '#t': [idempotencyKey]
       }

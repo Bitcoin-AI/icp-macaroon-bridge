@@ -70,13 +70,28 @@ const getIdempotencyStore = async (idempotencyKey) => {
   const pk = getPublicKey(sk);
   const npub = nip19.npubEncode(pk)
   console.log(`Service using npub: ${npub}`);
-  const idempotencyStore = await pool.get(relays,
-      {
-        kinds: [1],
-        authors: [pk],
-        '#t': [idempotencyKey]
-      }
-  );
+  const cond = true;
+  //("Error: Canister http responses were different across replicas, and no consensus was reached");
+  let idempotencyStore;
+  let i = 0;
+  while(cond){
+    idempotencyStore = await pool.get(relays,
+        {
+          kinds: [1],
+          authors: [pk],
+          '#t': [idempotencyKey]
+        }
+    );
+    await delay(getRandomInt(interval[0],interval[1]));
+    if(idempotencyStore){
+      cond = false;
+    }
+    i = i + 1;
+    if(i == 3){
+      cond = false;
+    }
+  }
+
   return(idempotencyStore);
 };
 // Here to  store the response according to the indempotencyKey

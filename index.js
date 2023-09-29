@@ -149,7 +149,7 @@ app.get('/', (req, res) => {
   return;
 });
 
-app.get('/v1/payreq', async (req, res) => {
+app.get('/v1/payreq/:payment_request', async (req, res) => {
   try {
     // Verify if request comes from icp canister
 
@@ -413,7 +413,7 @@ app.post('/payBlockchainTx', (req, res) => {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
           },
-          body: JSON.stringify(sendTxPayload)  
+          body: JSON.stringify(sendTxPayload)
       };
 
       request.post(options, (error, response, body) => {
@@ -422,9 +422,9 @@ app.post('/payBlockchainTx', (req, res) => {
               res.status(500).json({ error: 'An error occurred while processing the transaction' });
               return;
           }
-          
+
           console.log('Transaction processed, returning response to client');
-          res.json(JSON.parse(body));  
+          res.json(JSON.parse(body));
       });
   } catch (error) {
       console.error('Error:', error);

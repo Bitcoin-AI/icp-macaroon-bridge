@@ -88,7 +88,7 @@ const getIdempotencyStore = async (idempotencyKey) => {
       cond = false;
     }
     i = i + 1;
-    if(i == 9){
+    if(i == process.env.MAX_RETRY){
       cond = false;
     }
   }

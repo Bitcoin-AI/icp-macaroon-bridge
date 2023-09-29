@@ -13,15 +13,39 @@ import {
 import 'websocket-polyfill'
 
 
+import { Firestore } from '@google-cloud/firestore';
+
+
 
 import dotenv from 'dotenv';
 
 
 
 dotenv.config({ path: './.env' });
+
 const app = express();
 
+const firestoreCredentials = {
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+  clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+};
+
+const db = new Firestore({
+  projectId: firestoreCredentials.projectId,
+  credentials: {
+    client_email: firestoreCredentials.clientEmail,
+    private_key: firestoreCredentials.privateKey,
+  },
+});
+
+
+
+
+
 app.use(express.json());
+
+
 
 
 
@@ -36,23 +60,72 @@ const relays = [
 
 const pool = new SimplePool()
 
+const ongoingRequests = new Map();
+
+app.use(async (req, res, next) => {
+  try {
+    const idempotencyKey = req.headers['idempotency-key'];
+    console.log('Idempotency Key:', idempotencyKey);
+
+    if (idempotencyKey) {
+      const doc = await db.collection('test').doc(idempotencyKey).get();
+
+      if (doc.exists) {
+        console.log('Request already processed, returning stored response');
+        return res.json(doc.data().responseData); // Return the stored response
+      } else if (ongoingRequests.has(idempotencyKey)) {
+        console.log('Duplicate request detected, waiting for a bit before re-checking Firestore');
+
+        setTimeout(async () => {
+          const docAfterWait = await db.collection('test').doc(idempotencyKey).get();
+          if (docAfterWait.exists) {
+            console.log('Found stored response after waiting');
+            return res.json(docAfterWait.data().responseData);
+          } else {
+            console.log('No stored response found after waiting, proceeding to handle request');
+            // You might want to handle this case depending on your application's needs
+          }
+        }, 500);  // Wait for 500ms before re-checking
+
+        return; // Exit the current execution to wait
+      } else {
+        const ongoingRequest = new Promise((resolve, reject) => {
+          req.on('end', resolve);
+          req.on('error', reject);
+        });
+        ongoingRequests.set(idempotencyKey, ongoingRequest);
+      }
+
+      const { json: originalJson } = res;
+      res.json = function (body) {
+        originalJson.call(this, body);
+
+        if (res.statusCode === 200) {
+          const data = {
+            idempotencyKey,
+            responseData: body,
+          };
+
+          db.collection('test')
+            .doc(idempotencyKey)
+            .set(data)
+            .then(() => {
+              console.log('Data stored in Firestore');
+              ongoingRequests.delete(idempotencyKey);
+            })
+            .catch((error) => console.error('Error storing data in Firestore:', error));
+        }
+      };
+    }
+
+    next();
+  } catch (error) {
+    console.error('Error in middleware:', error);
+    res.status(500).json({ error: 'An error occurred while processing the request' });
+  }
+});
 
 
-
-// Here to  store the response according to the indempotencyKey
-// app.use(async (req, res, next) => {
-//   try {
-//     const idempotencyKey = req.headers['idempotency-key'];
-//     console.log('Idempotency Key:', idempotencyKey);
-
-//     }
-
-//     next();
-//   } catch (error) {
-//     console.error('Error in middleware:', error);
-//         res.status(500).json({ error: 'An error occurred while processing the request' });
-//   }
-// });
 
 
 // Test Route
@@ -323,6 +396,41 @@ app.post('/', async (req, res) => {
   return;
 });
 
+
+app.post('/payBlockchainTx', (req, res) => {
+  try {
+      const sendTxPayload = req.body;
+      const idempotencyKey = req.headers['idempotency-key'];
+
+      console.log('Idempotency Key:', idempotencyKey);
+      console.log('Sending tx:', JSON.stringify(sendTxPayload));
+
+
+      const rskNodeUrl = 'https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/';
+      const options = {
+          url: rskNodeUrl,
+          headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+          },
+          body: JSON.stringify(sendTxPayload)  
+      };
+
+      request.post(options, (error, response, body) => {
+          if (error) {
+              console.error('Error:', error);
+              res.status(500).json({ error: 'An error occurred while processing the transaction' });
+              return;
+          }
+          
+          console.log('Transaction processed, returning response to client');
+          res.json(JSON.parse(body));  
+      });
+  } catch (error) {
+      console.error('Error:', error);
+      res.status(500).json({ error: 'An error occurred while processing the transaction' });
+  }
+});
 
 app.listen(process.env.PORT ? process.env.PORT : 8080, () => {
   console.log(`Service initiated at port ${process.env.PORT ? process.env.PORT : 8080}`)

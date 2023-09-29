@@ -61,6 +61,8 @@ const storeIdempotencyKey = async (messageHash,body) => {
 // Here to  store the response according to the indempotencyKey
 const checkIdempotencyKey = async (req,res,next) => {
   const idempotencyKey = req.headers['idempotency-key'];
+  const sk = process.env.NOSTR_SK;
+  const pk = getPublicKey(sk);
   if (idempotencyKey) {
 
     const idempotencyStore = await pool.get(relays,

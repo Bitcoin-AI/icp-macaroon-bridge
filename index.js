@@ -65,7 +65,7 @@ const storeIdempotencyKey = async (messageHash,body) => {
   return
 }
 
-const getIdempotencyStore = async (idempotencyKey) => {
+const getIdempotencyStore = async (idempotencyKey,requestId) => {
 
   const sk = process.env.NOSTR_SK;
   const pk = getPublicKey(sk);
@@ -76,7 +76,7 @@ const getIdempotencyStore = async (idempotencyKey) => {
   let idempotencyStore;
   let i = 0;
   while(cond){
-    console.log(`Tring to get idempotency key, try ${i} ...`)
+    console.log(`[${requestId}] Tring to get idempotency key, try ${i} ...`)
     idempotencyStore = await pool.get(relays,
         {
           kinds: [1],
@@ -86,15 +86,15 @@ const getIdempotencyStore = async (idempotencyKey) => {
     );
     if(idempotencyStore){
       cond = false;
-      console.log(`Data found`);
+      console.log(`[${requestId}] Data found`);
     }
     i = i + 1;
     if(i == process.env.MAX_RETRY){
       cond = false;
-      console.log(`Max Retries reached`);
+      console.log(`[${requestId}] Max Retries reached`);
     }
     const time = getRandomInt(interval[0],interval[1]);
-    console.log(`Delaying ${time} ...`)
+    console.log(`[${requestId}] Delaying ${time} ...`)
     await delay(time);
   }
 

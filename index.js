@@ -27,13 +27,21 @@ app.use(express.json());
 const relays = JSON.parse(process.env.RELAYS)
 const pool = new SimplePool()
 
+const delay = ms => new Promise(res => setTimeout(res, ms));
 
-
+function getRandomInt(min, max) {
+  min = Math.ceil(min);
+  max = Math.floor(max);
+  return Math.floor(Math.random() * (max - min) + min); // The maximum is exclusive and the minimum is inclusive
+}
 
 const storeIdempotencyKey = async (messageHash,body) => {
+  console.log(`Storing with idempotencyKey: ${messageHash}`);
   const sk = process.env.NOSTR_SK;
 
   const pk = getPublicKey(sk);
+  const npub = nip19.npubEncode(pk)
+  console.log(`Using npub: ${npub} to store replaceable event kind 30078 with 'd' as 'icp-canister-bridge-test' and 't' as ${messageHash}`)
   let event = {
     kind: 30078,
     pubkey: pk,
@@ -47,27 +55,44 @@ const storeIdempotencyKey = async (messageHash,body) => {
 
   event.id = getEventHash(event);
   event.sig = getSignature(event, sk);
+  console.log(`Publishing event ...`);
   let pubs = pool.publish(relays, event);
+  await Promise.all(pubs)
+  console.log(`Event published`);
   return
 }
+
+const getIdempotencyStore = async (idempotencyKey) => {
+
+  const sk = process.env.NOSTR_SK;
+  const pk = getPublicKey(sk);
+  const npub = nip19.npubEncode(pk)
+  console.log(`Service using npub: ${npub}`);
+  const idempotencyStore = await pool.get(relays,
+      {
+        kinds: [30078],
+        authors: [pk],
+        '#t': [idempotencyKey]
+      }
+  );
+  return(idempotencyStore);
+};
 // Here to  store the response according to the indempotencyKey
 const checkIdempotencyKey = async (req,res,next) => {
   const idempotencyKey = req.headers['idempotency-key'];
-  const sk = process.env.NOSTR_SK;
-  const pk = getPublicKey(sk);
+  console.log(`Checking idempotency key ...`);
   if (idempotencyKey) {
-
-    const idempotencyStore = await pool.get(relays,
-        {
-          kinds: [30078],
-          authors: [pk],
-          '#t': [idempotencyKey]
-        }
-    );
+    const delayTimeMS = getRandomInt(500,5000);
+    console.log(`Waiting ${delayTimeMS} ms to get value`);
+    await delay(delayTimeMS);
+    const idempotencyStore = await getIdempotencyStore(idempotencyKey);
     if (idempotencyStore) {
+      console.log(`Idempotency store found:`)
+      console.log(idempotencyStore)
       // If the idempotency key exists, return the stored response
       return res.json(idempotencyStore);
     } else {
+      console.log(`Idempotency value with key ${idempotencyKey} not found, proceding ...`);
       // Capture the response to store it with the idempotency key
       next();
     }
@@ -139,44 +164,53 @@ app.get('/v1/payreq', async (req, res) => {
 });
 
 app.post('/v1/invoices', (req, res) => {
+  try{
+    const idempotencyKey = req.headers['idempotency-key'];
+    const { value: amount, memo: evm_addr } = req.body;  // Updated this line
+    console.log(`Preparing to create invoice with memo ${evm_addr} and value ${amount}`);
 
-  const idempotencyKey = req.headers['idempotency-key'];
-
-  const { value: amount, memo: evm_addr } = req.body;  // Updated this line
-
-  // Validate that amount and evm_addr are defined
-  if (!amount || !evm_addr) {
-    res.status(400).json({ error: 'Both amount and evm_addr are required' });
-    return;
-  }
-
-  // Validate the type of amount
-  if (typeof amount !== 'number' && typeof amount !== 'string') {
-    res.status(400).json({ error: 'Invalid type for amount' });
-    return;
-  }
-
-  const options = {
-    url: `https://${process.env.REST_HOST}/v1/invoices`,
-    rejectUnauthorized: false,
-    json: true,
-    headers: {
-      'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
-    },
-    body: {
-      value: amount.toString(),
-      memo: evm_addr,
-    }
-  };
-
-  request.post(options, async (error, response, body) => {
-    if (error) {
-      res.status(500).json(error);
+    // Validate that amount and evm_addr are defined
+    if (!amount || !evm_addr) {
+      res.status(400).json({ error: 'Both amount and evm_addr are required' });
       return;
     }
-    await storeIdempotencyKey(idempotencyKey,body);
-    res.json(body);
-  });
+
+    // Validate the type of amount
+    if (typeof amount !== 'number' && typeof amount !== 'string') {
+      res.status(400).json({ error: 'Invalid type for amount' });
+      return;
+    }
+    console.log(`Body check ok, doing lightning request ...`);
+
+    const options = {
+      url: `https://${process.env.REST_HOST}/v1/invoices`,
+      rejectUnauthorized: false,
+      json: true,
+      headers: {
+        'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
+      },
+      body: {
+        value: amount.toString(),
+        memo: evm_addr,
+      }
+    };
+
+    request.post(options, (error, response, body) => {
+      if (error) {
+        res.status(500).json(error);
+        return;
+      }
+      console.log(`Lightning response sucessfull, storing result ...`);
+      storeIdempotencyKey(idempotencyKey,body).then(() => {
+        res.json(body);
+      })
+      .catch(err => {
+        console.log(err)
+      });
+    });
+  } catch(err){
+    console.log(err);
+  }
 });
 
 
@@ -340,8 +374,9 @@ app.post('/', async (req, res) => {
       event.id = getEventHash(event);
       event.sig = getSignature(event, sk);
       let pubs = pool.publish(relays, event);
+      await Promise.all(pubs)
       await storeIdempotencyKey(idempotencyKey,body);
-
+      pool.close();
       res.json(body);
       return;
     });

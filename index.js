@@ -76,6 +76,7 @@ const getIdempotencyStore = async (idempotencyKey) => {
   let idempotencyStore;
   let i = 0;
   while(cond){
+    console.log(`Tring to get idempotency key, try ${i} ...`)
     idempotencyStore = await pool.get(relays,
         {
           kinds: [1],
@@ -83,14 +84,18 @@ const getIdempotencyStore = async (idempotencyKey) => {
           '#t': [idempotencyKey]
         }
     );
-    await delay(getRandomInt(interval[0],interval[1]));
     if(idempotencyStore){
       cond = false;
+      console.log(`Data found`);
     }
     i = i + 1;
     if(i == process.env.MAX_RETRY){
       cond = false;
+      console.log(`Max Retries reached`);
     }
+    const time = getRandomInt(interval[0],interval[1]);
+    console.log(`Delaying ${time} ...`)
+    await delay(time);
   }
 
   return(idempotencyStore);

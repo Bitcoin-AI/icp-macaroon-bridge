@@ -24,7 +24,9 @@ const app = express();
 app.use(express.json());
 
 
-const relays = JSON.parse(process.env.RELAYS)
+const relays = JSON.parse(process.env.RELAYS);
+const interval = JSON.parse(process.env.INTERVAL);
+
 const pool = new SimplePool()
 
 const delay = ms => new Promise(res => setTimeout(res, ms));
@@ -82,7 +84,7 @@ const checkIdempotencyKey = async (req,res,next) => {
   const idempotencyKey = req.headers['idempotency-key'];
   console.log(`Checking idempotency key ...`);
   if (idempotencyKey) {
-    const delayTimeMS = getRandomInt(500,5000);
+    const delayTimeMS = getRandomInt(interval[0],interval[1]);
     console.log(`Waiting ${delayTimeMS} ms to get value`);
     await delay(delayTimeMS);
     const idempotencyStore = await getIdempotencyStore(idempotencyKey);

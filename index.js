@@ -50,7 +50,7 @@ const storeIdempotencyKey = async (messageHash,body) => {
       ['d', 'icp-canister-bridge-test'],
       ['t',messageHash]
     ],
-    content: JSON.stringfiy(body)
+    content: JSON.stringify(body)
   }
 
   event.id = getEventHash(event);

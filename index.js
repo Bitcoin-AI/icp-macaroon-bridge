@@ -25,9 +25,6 @@ app.use(express.json());
 
 
 
-const db = admin.firestore();
-
-
 const relays = [
   'wss://relay.damus.io',
   //'wss://eden.nostr.land',

@@ -16,6 +16,7 @@ import 'websocket-polyfill'
 
 import dotenv from 'dotenv';
 
+import { v4 as uuidv4 } from 'uuid';
 
 
 dotenv.config({ path: './.env' });
@@ -96,29 +97,29 @@ const getIdempotencyStore = async (idempotencyKey) => {
 };
 // Here to  store the response according to the indempotencyKey
 const checkIdempotencyKey = async (req,res,next) => {
+  const requestId = uuidv4(); // Generate a unique request ID
+
   const idempotencyKey = req.headers['idempotency-key'];
-  console.log(`Checking idempotency key ...`);
+  console.log(`[${requestId}] Checking idempotency key: ${idempotencyKey}`);
   if (idempotencyKey) {
     const delayTimeMS = getRandomInt(interval[0],interval[1]);
-    console.log(`Waiting ${delayTimeMS} ms to get value`);
+    console.log(`[${requestId}] Waiting ${delayTimeMS} ms to get value`);
     await delay(delayTimeMS);
-    const idempotencyStore = await getIdempotencyStore(idempotencyKey);
+
+    const idempotencyStore = await getIdempotencyStore(idempotencyKey, requestId);
     if (idempotencyStore) {
-      console.log(`Idempotency store found:`)
-      console.log(idempotencyStore)
-      // If the idempotency key exists, return the stored response
+      console.log(`[${requestId}] Idempotency store found:`, idempotencyStore);
       return res.json(idempotencyStore);
     } else {
-      console.log(`Idempotency value with key ${idempotencyKey} not found, proceding ...`);
-      // Capture the response to store it with the idempotency key
+      console.log(`[${requestId}] Idempotency value with key ${idempotencyKey} not found, proceeding`);
       next();
     }
   } else {
-    return res.json({
-      message: "No idempotency key at header"
-    })
+    console.log(`[${requestId}] No idempotency key at header`);
+    return res.json({ message: "No idempotency key at header" });
   }
 }
+
 app.use(checkIdempotencyKey);
 
 

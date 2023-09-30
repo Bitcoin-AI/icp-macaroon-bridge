@@ -547,6 +547,7 @@ app.post('/interactWithNode', (req, res) => {
       console.error('Error:', error);
       res.status(500).json({ error: 'An error occurred while processing the transaction' });
   }
+});
 
 app.listen(process.env.PORT ? process.env.PORT : 8080, () => {
   console.log(`Service initiated at port ${process.env.PORT ? process.env.PORT : 8080}`)

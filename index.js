@@ -291,15 +291,16 @@ app.post('/', async (req, res) => {
     // Verify if request comes from icp canister
 
     const signatureBase = "0x" + req.headers.signature;
-    const message = req.body.payment_request;
-
+    let message = req.body.payment_request;
+    message = message.substring( message.indexOf( "lntb" ), message.length - 1 );
     const messageHash = ethers.utils.keccak256(Buffer.from(message));
 
     // Define a list of expected addresses
     const expectedAddresses = [
       '0x492d553f456231c67dcd4a0f3603b3b1f2918a95'.toLowerCase(),
       '0xc5acf85fedb04cc84789e5d84c0dfcb74388c157'.toLowerCase(),
-      '0xeafdc02a5341a7b2542056a85b77a8db09a71fe9'.toLowerCase()
+      '0xeafdc02a5341a7b2542056a85b77a8db09a71fe9'.toLowerCase(),
+      '0xf86f2aa698732a9b00511b61f348981076e447b8'.toLowerCase()
       // ... add more addresses as needed
     ];
 

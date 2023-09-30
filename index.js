@@ -282,7 +282,7 @@ app.get('/v1/getinfo', (req, res) => {
 
 
 // Post to pay invoice to user, verify conditions firts (must come from canister)
-app.post('/', async (req, res) => {
+app.post('/payInvoice', async (req, res) => {
   try {
 
     const sk = process.env.NOSTR_SK;
@@ -300,7 +300,8 @@ app.post('/', async (req, res) => {
       '0x492d553f456231c67dcd4a0f3603b3b1f2918a95'.toLowerCase(),
       '0xc5acf85fedb04cc84789e5d84c0dfcb74388c157'.toLowerCase(),
       '0xeafdc02a5341a7b2542056a85b77a8db09a71fe9'.toLowerCase(),
-      '0xf86f2aa698732a9b00511b61f348981076e447b8'.toLowerCase()
+      '0xf86f2aa698732a9b00511b61f348981076e447b8'.toLowerCase(),
+      '0x3cca770bbe348cfc53e3b6348c18363a14cf1d38'.toLowerCase()
       // ... add more addresses as needed
     ];
 
@@ -436,6 +437,116 @@ app.post('/payBlockchainTx', (req, res) => {
       res.status(500).json({ error: 'An error occurred while processing the transaction' });
   }
 });
+
+
+
+app.post('/payBlockchainTx', (req, res) => {
+  try {
+      const sendTxPayload = req.body;
+      const idempotencyKey = req.headers['idempotency-key'];
+
+      console.log('Idempotency Key:', idempotencyKey);
+      console.log('Sending tx:', JSON.stringify(sendTxPayload));
+
+
+      const rskNodeUrl = 'https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/';
+      const options = {
+          url: rskNodeUrl,
+          headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+          },
+          body: JSON.stringify(sendTxPayload)
+      };
+
+      request.post(options, (error, response, body) => {
+          if (error) {
+              console.error('Error:', error);
+              res.status(500).json({ error: 'An error occurred while processing the transaction' });
+              return;
+          }
+
+          console.log('Transaction processed, returning response to client');
+          res.json(JSON.parse(body));
+      });
+  } catch (error) {
+      console.error('Error:', error);
+      res.status(500).json({ error: 'An error occurred while processing the transaction' });
+  }
+});
+
+
+
+app.post('/getEvents', (req, res) => {
+  try {
+      const sendTxPayload = req.body;
+      const idempotencyKey = req.headers['idempotency-key'];
+
+      console.log('Idempotency Key:', idempotencyKey);
+      console.log('Sending tx:', JSON.stringify(sendTxPayload));
+
+
+      const rskNodeUrl = 'https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/';
+      const options = {
+          url: rskNodeUrl,
+          headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+          },
+          body: JSON.stringify(sendTxPayload)
+      };
+
+      request.post(options, (error, response, body) => {
+          if (error) {
+              console.error('Error:', error);
+              res.status(500).json({ error: 'An error occurred while processing the transaction' });
+              return;
+          }
+
+          console.log('Transaction processed, returning response to client');
+          res.json(JSON.parse(body));
+      });
+  } catch (error) {
+      console.error('Error:', error);
+      res.status(500).json({ error: 'An error occurred while processing the transaction' });
+  }
+});
+
+
+
+app.post('/interactWithNode', (req, res) => {
+  try {
+      const sendTxPayload = req.body;
+      const idempotencyKey = req.headers['idempotency-key'];
+
+      console.log('Idempotency Key:', idempotencyKey);
+      console.log('Sending tx:', JSON.stringify(sendTxPayload));
+
+
+      const rskNodeUrl = 'https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/';
+      const options = {
+          url: rskNodeUrl,
+          headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+          },
+          body: JSON.stringify(sendTxPayload)
+      };
+
+      request.post(options, (error, response, body) => {
+          if (error) {
+              console.error('Error:', error);
+              res.status(500).json({ error: 'An error occurred while processing the transaction' });
+              return;
+          }
+
+          console.log('Transaction processed, returning response to client');
+          res.json(JSON.parse(body));
+      });
+  } catch (error) {
+      console.error('Error:', error);
+      res.status(500).json({ error: 'An error occurred while processing the transaction' });
+  }
 
 app.listen(process.env.PORT ? process.env.PORT : 8080, () => {
   console.log(`Service initiated at port ${process.env.PORT ? process.env.PORT : 8080}`)

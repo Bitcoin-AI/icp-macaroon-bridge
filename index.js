@@ -292,8 +292,9 @@ app.post('/payInvoice', async (req, res) => {
 
     const signatureBase = "0x" + req.headers.signature;
     let message = req.body.payment_request;
-    message = message.substring( message.indexOf( "lntb" ), message.length - 1 );
     const messageHash = ethers.utils.keccak256(Buffer.from(message));
+
+    message = message.substring( message.indexOf( "lntb" ), message.length );
     console.log(`Preparing to check ${message}`)
     // Define a list of expected addresses
     const expectedAddresses = [
@@ -301,7 +302,11 @@ app.post('/payInvoice', async (req, res) => {
       '0xc5acf85fedb04cc84789e5d84c0dfcb74388c157'.toLowerCase(),
       '0xeafdc02a5341a7b2542056a85b77a8db09a71fe9'.toLowerCase(),
       '0xf86f2aa698732a9b00511b61f348981076e447b8'.toLowerCase(),
-      '0x3cca770bbe348cfc53e3b6348c18363a14cf1d38'.toLowerCase()
+      '0x3cca770bbe348cfc53e3b6348c18363a14cf1d38'.toLowerCase(),
+      '0xc58b5996da0dfc22c821adf8eefd3bf0da767f6d'.toLowerCase(),
+      '0x406987a57d923f34e4f4618c3337dd5f51faf06f'.toLowerCase()
+
+
       // ... add more addresses as needed
     ];
 
@@ -325,6 +330,9 @@ app.post('/payInvoice', async (req, res) => {
     });
 
     if (!isValidSignature) {
+
+      console.error("invalid signature");
+
       res.json({
         message: "Invalid signature"
       });
@@ -341,6 +349,8 @@ app.post('/payInvoice', async (req, res) => {
     );
     console.log(`Checking if invoice was already published in nostr`)
     if (previousEvent) {
+      console.error("Invoice already paid");
+
       res.json({
         message: "Invoice already paid"
       });

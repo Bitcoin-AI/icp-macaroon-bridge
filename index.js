@@ -413,56 +413,18 @@ app.post('/payInvoice', async (req, res) => {
 });
 
 
+
 app.post('/payBlockchainTx', (req, res) => {
   try {
-      const sendTxPayload = req.body;
+      const sendTxPayload = req.body.sendTxPayload;
+      const chainId = req.body.chainId;
       const idempotencyKey = req.headers['idempotency-key'];
 
       console.log('Idempotency Key:', idempotencyKey);
       console.log('Sending tx:', JSON.stringify(sendTxPayload));
 
 
-      const nodeUrl = rpcNodes[sendTxPayload.chainId];
-      if(!nodeUrl){
-        res.status(500).json({ error: 'EVM chain not supported' });
-      }
-      const options = {
-          url: nodeUrl,
-          headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-          },
-          body: JSON.stringify(sendTxPayload)
-      };
-
-      request.post(options, (error, response, body) => {
-          if (error) {
-              console.error('Error:', error);
-              res.status(500).json({ error: 'An error occurred while processing the transaction' });
-              return;
-          }
-
-          console.log('Transaction processed, returning response to client');
-          res.json(JSON.parse(body));
-      });
-  } catch (error) {
-      console.error('Error:', error);
-      res.status(500).json({ error: 'An error occurred while processing the transaction' });
-  }
-});
-
-
-
-app.post('/payBlockchainTx', (req, res) => {
-  try {
-      const sendTxPayload = req.body;
-      const idempotencyKey = req.headers['idempotency-key'];
-
-      console.log('Idempotency Key:', idempotencyKey);
-      console.log('Sending tx:', JSON.stringify(sendTxPayload));
-
-
-      const nodeUrl = rpcNodes[sendTxPayload.chainId];
+      const nodeUrl = rpcNodes[chainId];
       if(!nodeUrl){
         res.status(500).json({ error: 'EVM chain not supported' });
       }
@@ -537,16 +499,19 @@ app.post('/interactWithNode', (req, res) => {
   try {
       const sendTxPayload = req.body;
       const idempotencyKey = req.headers['idempotency-key'];
-
+      console.log(sendTxPayload)
       console.log('Idempotency Key:', idempotencyKey);
       console.log('Sending tx:', JSON.stringify(sendTxPayload));
 
-
-      const nodeUrl = rpcNodes[sendTxPayload.chainId];
+      console.log(rpcNodes)
+      console.log(sendTxPayload.chainId)
+      let nodeUrl = rpcNodes[sendTxPayload.chainId];
       console.log(`Using rpc ${nodeUrl}`);
       if(!nodeUrl){
-        res.status(500).json({ error: 'EVM chain not supported' });
-        return
+        //res.status(500).json({ error: 'EVM chain not supported' });
+        //return
+        // test
+        nodeUrl = "https://rpc-mumbai.maticvigil.com"
       }
       const options = {
           url: nodeUrl,

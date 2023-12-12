@@ -194,10 +194,10 @@ app.get('/v1/payreq/:payment_request', async (req, res) => {
 
 app.post('/v1/invoices', (req, res) => {
 
-
-  const { value: amount, memo: evm_addr } = req.body;  // Updated this line
-
-  console.log("Request for invoice creation with amount "+amount+" and memo "+memo);
+  //const { value: amount, memo: evm_addr } = req.body;  // Updated this line
+  const amount = req.body.value;
+  const evm_addr = req.body.memo;
+  console.log("Request for invoice creation with amount "+amount+" and memo "+evm_addr);
   // Validate that amount and evm_addr are defined
   if (!amount || !evm_addr) {
     res.status(400).json({ error: 'Both amount and evm_addr are required' });

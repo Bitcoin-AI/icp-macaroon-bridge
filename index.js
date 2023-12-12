@@ -60,9 +60,9 @@ const relays = [
 
 const rpcNodes = {
   // RSK
-  0x1F: "https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/",
+  "0x1F": "https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/",
   // Mumbai
-  0x13881: `https://rpc-mumbai.maticvigil.com`
+  "0x13881": `https://rpc-mumbai.maticvigil.com`
 }
 
 const pool = new SimplePool()
@@ -546,6 +546,7 @@ app.post('/interactWithNode', (req, res) => {
       console.log(`Using rpc ${nodeUrl}`);
       if(!nodeUrl){
         res.status(500).json({ error: 'EVM chain not supported' });
+        return
       }
       const options = {
           url: nodeUrl,
@@ -565,10 +566,12 @@ app.post('/interactWithNode', (req, res) => {
 
           console.log('Transaction processed, returning response to client');
           res.json(JSON.parse(body));
+          return
       });
   } catch (error) {
       console.error('Error:', error);
       res.status(500).json({ error: 'An error occurred while processing the transaction' });
+      return
   }
 });
 

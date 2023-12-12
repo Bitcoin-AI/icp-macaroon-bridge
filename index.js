@@ -416,6 +416,7 @@ app.post('/payInvoice', async (req, res) => {
 
 app.post('/payBlockchainTx', (req, res) => {
   try {
+      console.log(req.body)
       const sendTxPayload = req.body.sendTxPayload;
       const chainId = req.body.chainId;
       const idempotencyKey = req.headers['idempotency-key'];

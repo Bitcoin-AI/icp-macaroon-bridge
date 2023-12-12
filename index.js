@@ -58,6 +58,13 @@ const relays = [
   //'wss://nostr-01.bolt.observer'
 ]
 
+const rpcNodes = {
+  // RSK
+  0x1F: "https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/",
+  // Mumbai
+  0x13881: `https://rpc-mumbai.maticvigil.com`
+}
+
 const pool = new SimplePool()
 
 const ongoingRequests = new Map();
@@ -190,6 +197,7 @@ app.post('/v1/invoices', (req, res) => {
 
   const { value: amount, memo: evm_addr } = req.body;  // Updated this line
 
+  console.log("Request for invoice creation with amount "+amount+" and memo "+memo);
   // Validate that amount and evm_addr are defined
   if (!amount || !evm_addr) {
     res.status(400).json({ error: 'Both amount and evm_addr are required' });
@@ -220,6 +228,8 @@ app.post('/v1/invoices', (req, res) => {
       res.status(500).json(error);
       return;
     }
+    console.log("Success invoice creation");
+    console.log(body);
     res.json(body);
   });
 });
@@ -412,9 +422,12 @@ app.post('/payBlockchainTx', (req, res) => {
       console.log('Sending tx:', JSON.stringify(sendTxPayload));
 
 
-      const rskNodeUrl = 'https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/';
+      const nodeUrl = rpcNodes[sendTxPayload.chainId];
+      if(!nodeUrl){
+        res.status(500).json({ error: 'EVM chain not supported' });
+      }
       const options = {
-          url: rskNodeUrl,
+          url: nodeUrl,
           headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
@@ -449,9 +462,12 @@ app.post('/payBlockchainTx', (req, res) => {
       console.log('Sending tx:', JSON.stringify(sendTxPayload));
 
 
-      const rskNodeUrl = 'https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/';
+      const nodeUrl = rpcNodes[sendTxPayload.chainId];
+      if(!nodeUrl){
+        res.status(500).json({ error: 'EVM chain not supported' });
+      }
       const options = {
-          url: rskNodeUrl,
+          url: nodeUrl,
           headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
@@ -486,9 +502,12 @@ app.post('/getEvents', (req, res) => {
       console.log('Sending tx:', JSON.stringify(sendTxPayload));
 
 
-      const rskNodeUrl = 'https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/';
+      const nodeUrl = rpcNodes[sendTxPayload.chainId];
+      if(!nodeUrl){
+        res.status(500).json({ error: 'EVM chain not supported' });
+      }
       const options = {
-          url: rskNodeUrl,
+          url: nodeUrl,
           headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
@@ -523,9 +542,13 @@ app.post('/interactWithNode', (req, res) => {
       console.log('Sending tx:', JSON.stringify(sendTxPayload));
 
 
-      const rskNodeUrl = 'https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/';
+      const nodeUrl = rpcNodes[sendTxPayload.chainId];
+      console.log(`Using rpc ${nodeUrl}`);
+      if(!nodeUrl){
+        res.status(500).json({ error: 'EVM chain not supported' });
+      }
       const options = {
-          url: rskNodeUrl,
+          url: nodeUrl,
           headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',

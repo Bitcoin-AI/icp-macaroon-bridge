@@ -62,7 +62,7 @@ const rpcNodes = {
   // RSK
   31: "https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/",
   // Mumbai
-  80001: `https://polygon-mumbai.blockpi.network/v1/rpc/public`
+  80001: `https://polygon-mumbai.g.alchemy.com/v2/0VeunGTa71rgR2spaYNXVjzhxUZodSc_`
 }
 
 const pool = new SimplePool()
@@ -519,7 +519,7 @@ app.post('/interactWithNode', (req, res) => {
       //res.status(500).json({ error: 'EVM chain not supported' });
       //return
       // test
-      nodeUrl = "https://rpc-mumbai.maticvigil.com"
+      nodeUrl = rpcNodes[80001];
     }
     const options = {
       url: nodeUrl,

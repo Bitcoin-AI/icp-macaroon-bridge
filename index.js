@@ -509,7 +509,9 @@ app.post('/interactWithNode', (req, res) => {
     const sendTxPayload = req.body;
     const idempotencyKey = req.headers['idempotency-key'];
 
-    const chainId = req.headers['chain-Id'];
+    const chainId = req.headers['chain-id'];
+
+    console.log("chainIdHex!:", chainId)
 
     let chainIdInt = parseInt(chainId, 16);
 

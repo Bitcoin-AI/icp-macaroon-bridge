@@ -428,7 +428,9 @@ app.post('/payBlockchainTx', (req, res) => {
     console.log('Sending tx:', JSON.stringify(sendTxPayload));
 
 
-    const nodeUrl = rpcNodes[chainId.toString()];
+    const nodeUrl = rpcNodes[Number(chainId)];
+    console.log(Object.keys(rpcNodes));
+    console.log(typeof(Object.keys(rpcNodes)[0]));
     console.log(nodeUrl);
     if (!nodeUrl) {
       res.status(500).json({ error: 'EVM chain not supported' });

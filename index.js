@@ -311,7 +311,8 @@ app.post('/payInvoice', async (req, res) => {
       '0xc5acf85fedb04cc84789e5d84c0dfcb74388c157'.toLowerCase(),
       '0xeafdc02a5341a7b2542056a85b77a8db09a71fe9'.toLowerCase(),
       '0xf86f2aa698732a9b00511b61f348981076e447b8'.toLowerCase(),
-      '0x3cca770bbe348cfc53e3b6348c18363a14cf1d38'.toLowerCase()
+      '0x3cca770bbe348cfc53e3b6348c18363a14cf1d38'.toLowerCase(),
+      '0x4d8f351b7417a19aa1f4cd9165658b30819cc48b'.toLowerCase()
       // ... add more addresses as needed
     ];
 
@@ -420,7 +421,7 @@ app.post('/payBlockchainTx', (req, res) => {
     const sendTxPayload = req.body.sendTxPayload;
     const chainId = req.body.chainId;
     console.log(`ChainId: ${chainId}`)
-    console.log(typeof(chainId));
+    console.log(typeof (chainId));
 
     const idempotencyKey = req.headers['idempotency-key'];
 
@@ -430,7 +431,7 @@ app.post('/payBlockchainTx', (req, res) => {
 
     const nodeUrl = rpcNodes[Number(chainId)];
     console.log(Object.keys(rpcNodes));
-    console.log(typeof(Object.keys(rpcNodes)[0]));
+    console.log(typeof (Object.keys(rpcNodes)[0]));
     console.log(nodeUrl);
     if (!nodeUrl) {
       res.status(500).json({ error: 'EVM chain not supported' });

@@ -506,12 +506,6 @@ app.post('/getEvents', (req, res) => {
 
 app.post('/interactWithNode', (req, res) => {
   try {
-
-
-    console.log("req###", req);
-
-
-    console.log("req###", req);
     const sendTxPayload = req.body;
     const idempotencyKey = req.headers['idempotency-key'];
 
@@ -520,7 +514,6 @@ app.post('/interactWithNode', (req, res) => {
     console.log("chainIdHex!:", chainId)
 
     let chainIdInt = parseInt(chainId, 16);
-
 
     //Chain Id is hexadecimal converting to 
 

@@ -13,119 +13,126 @@ import {
 import 'websocket-polyfill'
 
 
+import { Firestore } from '@google-cloud/firestore';
+
+
 
 import dotenv from 'dotenv';
 
-import { v4 as uuidv4 } from 'uuid';
 
 
 dotenv.config({ path: './.env' });
+
 const app = express();
+
+const firestoreCredentials = {
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+  clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+};
+
+const db = new Firestore({
+  projectId: firestoreCredentials.projectId,
+  credentials: {
+    client_email: firestoreCredentials.clientEmail,
+    private_key: firestoreCredentials.privateKey,
+  },
+});
+
+
+
+
 
 app.use(express.json());
 
 
-const relays = JSON.parse(process.env.RELAYS);
-const interval = JSON.parse(process.env.INTERVAL);
+
+
+
+const relays = [
+  'wss://relay.damus.io',
+  //'wss://eden.nostr.land',
+  //'wss://nostr-pub.wellorder.net',
+  //'wss://relay.nostr.info',
+  //'wss://relay.snort.social',
+  //'wss://nostr-01.bolt.observer'
+]
+
+const rpcNodes = {
+  // RSK
+  "0x1F": "https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/",
+  // Mumbai
+  "0x13881": `https://rpc-mumbai.maticvigil.com`
+}
 
 const pool = new SimplePool()
 
-const delay = ms => new Promise(res => setTimeout(res, ms));
+const ongoingRequests = new Map();
 
-function getRandomInt(min, max) {
-  min = Math.ceil(min);
-  max = Math.floor(max);
-  return Math.floor(Math.random() * (max - min) + min); // The maximum is exclusive and the minimum is inclusive
-}
+app.use(async (req, res, next) => {
+  try {
+    const idempotencyKey = req.headers['idempotency-key'];
+    console.log('Idempotency Key:', idempotencyKey);
 
-const storeIdempotencyKey = async (messageHash,body) => {
-  console.log(`Storing with idempotencyKey: ${messageHash}`);
-  const sk = process.env.NOSTR_SK;
+    if (idempotencyKey) {
+      const doc = await db.collection('test').doc(idempotencyKey).get();
 
-  const pk = getPublicKey(sk);
-  const npub = nip19.npubEncode(pk)
-  console.log(`Using npub: ${npub} to store event kind 1 with 'd' as 'icp-canister-bridge-test' and 't' as ${messageHash}`)
-  let event = {
-    kind: 1,
-    pubkey: pk,
-    created_at: Math.floor(Date.now() / 1000),
-    tags: [
-      ['d', 'icp-canister-bridge-test'],
-      ['t',messageHash]
-    ],
-    content: JSON.stringify(body)
-  }
+      if (doc.exists) {
+        console.log('Request already processed, returning stored response');
+        return res.json(doc.data().responseData); // Return the stored response
+      } else if (ongoingRequests.has(idempotencyKey)) {
+        console.log('Duplicate request detected, waiting for a bit before re-checking Firestore');
 
-  event.id = getEventHash(event);
-  event.sig = getSignature(event, sk);
-  console.log(`Publishing event ...`);
-  let pubs = pool.publish(relays, event);
-  await Promise.all(pubs)
-  console.log(`Event published`);
-  return
-}
+        setTimeout(async () => {
+          const docAfterWait = await db.collection('test').doc(idempotencyKey).get();
+          if (docAfterWait.exists) {
+            console.log('Found stored response after waiting');
+            return res.json(docAfterWait.data().responseData);
+          } else {
+            console.log('No stored response found after waiting, proceeding to handle request');
+            // You might want to handle this case depending on your application's needs
+          }
+        }, 500);  // Wait for 500ms before re-checking
 
-const getIdempotencyStore = async (idempotencyKey,requestId) => {
+        return; // Exit the current execution to wait
+      } else {
+        const ongoingRequest = new Promise((resolve, reject) => {
+          req.on('end', resolve);
+          req.on('error', reject);
+        });
+        ongoingRequests.set(idempotencyKey, ongoingRequest);
+      }
 
-  const sk = process.env.NOSTR_SK;
-  const pk = getPublicKey(sk);
-  const npub = nip19.npubEncode(pk)
-  console.log(`Service using npub: ${npub}`);
-  const cond = true;
-  //("Error: Canister http responses were different across replicas, and no consensus was reached");
-  let idempotencyStore;
-  let i = 0;
-  while(cond){
-    console.log(`[${requestId}] Tring to get idempotency key, try ${i} ...`)
-    idempotencyStore = await pool.get(relays,
-        {
-          kinds: [1],
-          authors: [pk],
-          '#t': [idempotencyKey]
+      const { json: originalJson } = res;
+      res.json = function (body) {
+        originalJson.call(this, body);
+
+        if (res.statusCode === 200) {
+          const data = {
+            idempotencyKey,
+            responseData: body,
+          };
+
+          db.collection('test')
+            .doc(idempotencyKey)
+            .set(data)
+            .then(() => {
+              console.log('Data stored in Firestore');
+              ongoingRequests.delete(idempotencyKey);
+            })
+            .catch((error) => console.error('Error storing data in Firestore:', error));
         }
-    );
-    if(idempotencyStore){
-      cond = false;
-      console.log(`[${requestId}] Data found`);
+      };
     }
-    i = i + 1;
-    if(i == process.env.MAX_RETRY){
-      cond = false;
-      console.log(`[${requestId}] Max Retries reached`);
-    }
-    const time = getRandomInt(interval[0],interval[1]);
-    console.log(`[${requestId}] Delaying ${time} ...`)
-    await delay(time);
+
+    next();
+  } catch (error) {
+    console.error('Error in middleware:', error);
+    res.status(500).json({ error: 'An error occurred while processing the request' });
   }
+});
 
-  return(idempotencyStore);
-};
-// Here to  store the response according to the indempotencyKey
-const checkIdempotencyKey = async (req,res,next) => {
-  const requestId = uuidv4(); // Generate a unique request ID
 
-  const idempotencyKey = req.headers['idempotency-key'];
-  console.log(`[${requestId}] Checking idempotency key: ${idempotencyKey}`);
-  if (idempotencyKey) {
-    const delayTimeMS = getRandomInt(interval[0],interval[1]);
-    console.log(`[${requestId}] Waiting ${delayTimeMS} ms to get value`);
-    await delay(delayTimeMS);
-
-    const idempotencyStore = await getIdempotencyStore(idempotencyKey, requestId);
-    if (idempotencyStore) {
-      console.log(`[${requestId}] Idempotency store found:`, idempotencyStore);
-      return res.json(idempotencyStore);
-    } else {
-      console.log(`[${requestId}] Idempotency value with key ${idempotencyKey} not found, proceeding`);
-      next();
-    }
-  } else {
-    console.log(`[${requestId}] No idempotency key at header`);
-    return res.json({ message: "No idempotency key at header" });
-  }
-}
-
-app.use(checkIdempotencyKey);
 
 
 // Test Route
@@ -149,10 +156,10 @@ app.get('/', (req, res) => {
   return;
 });
 
-app.get('/v1/payreq', async (req, res) => {
+app.get('/v1/payreq/:payment_request', async (req, res) => {
   try {
     // Verify if request comes from icp canister
-    const idempotencyKey = req.headers['idempotency-key'];
+
     //const signatureBase = "0x" + req.headers.signature;
     const payment_request = req.params.payment_request;
 
@@ -172,7 +179,6 @@ app.get('/v1/payreq', async (req, res) => {
         res.json(error);
         return;
       }
-      await storeIdempotencyKey(idempotencyKey,body);
       res.json(body);
       return;
     });
@@ -187,60 +193,51 @@ app.get('/v1/payreq', async (req, res) => {
 });
 
 app.post('/v1/invoices', (req, res) => {
-  try{
-    const idempotencyKey = req.headers['idempotency-key'];
-    const { value: amount, memo: evm_addr } = req.body;  // Updated this line
-    console.log(`Preparing to create invoice with memo ${evm_addr} and value ${amount}`);
 
-    // Validate that amount and evm_addr are defined
-    if (!amount || !evm_addr) {
-      res.status(400).json({ error: 'Both amount and evm_addr are required' });
-      return;
-    }
-
-    // Validate the type of amount
-    if (typeof amount !== 'number' && typeof amount !== 'string') {
-      res.status(400).json({ error: 'Invalid type for amount' });
-      return;
-    }
-    console.log(`Body check ok, doing lightning request ...`);
-
-    const options = {
-      url: `https://${process.env.REST_HOST}/v1/invoices`,
-      rejectUnauthorized: false,
-      json: true,
-      headers: {
-        'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
-      },
-      body: {
-        value: amount.toString(),
-        memo: evm_addr,
-      }
-    };
-
-    request.post(options, (error, response, body) => {
-      if (error) {
-        res.status(500).json(error);
-        return;
-      }
-      console.log(`Lightning response sucessfull, storing result ...`);
-      storeIdempotencyKey(idempotencyKey,body).then(() => {
-        res.json(body);
-      })
-      .catch(err => {
-        console.log(err)
-      });
-    });
-  } catch(err){
-    console.log(err);
+  //const { value: amount, memo: evm_addr } = req.body;  // Updated this line
+  const amount = req.body.value;
+  const evm_addr = req.body.memo;
+  console.log("Request for invoice creation with amount "+amount+" and memo "+evm_addr);
+  // Validate that amount and evm_addr are defined
+  if (!amount || !evm_addr) {
+    res.status(400).json({ error: 'Both amount and evm_addr are required' });
+    return;
   }
+
+  // Validate the type of amount
+  if (typeof amount !== 'number' && typeof amount !== 'string') {
+    res.status(400).json({ error: 'Invalid type for amount' });
+    return;
+  }
+
+  const options = {
+    url: `https://${process.env.REST_HOST}/v1/invoices`,
+    rejectUnauthorized: false,
+    json: true,
+    headers: {
+      'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
+    },
+    body: {
+      value: amount.toString(),
+      memo: evm_addr,
+    }
+  };
+
+  request.post(options, (error, response, body) => {
+    if (error) {
+      res.status(500).json(error);
+      return;
+    }
+    console.log("Success invoice creation");
+    console.log(body);
+    res.json(body);
+  });
 });
 
 
 app.get('/v2/invoices/lookup', async (req, res) => {
   try {
     const payment_hash = req.query.payment_hash;
-    const idempotencyKey = req.headers['idempotency-key'];
 
     if (!payment_hash) {
       res.status(400).send({ "error": "payment_hash is required" });
@@ -263,7 +260,6 @@ app.get('/v2/invoices/lookup', async (req, res) => {
         res.status(500).json(error);
         return;
       }
-      await storeIdempotencyKey(idempotencyKey,body);
       res.json(body);
       return;
     });
@@ -296,9 +292,8 @@ app.get('/v1/getinfo', (req, res) => {
 
 
 // Post to pay invoice to user, verify conditions firts (must come from canister)
-app.post('/', async (req, res) => {
+app.post('/payInvoice', async (req, res) => {
   try {
-    const idempotencyKey = req.headers['idempotency-key'];
 
     const sk = process.env.NOSTR_SK;
     const pk = getPublicKey(sk);
@@ -306,15 +301,17 @@ app.post('/', async (req, res) => {
     // Verify if request comes from icp canister
 
     const signatureBase = "0x" + req.headers.signature;
-    const message = req.body.payment_request;
-
+    let message = req.body.payment_request;
+    message = message.substring( message.indexOf( "lntb" ), message.length - 1 );
     const messageHash = ethers.utils.keccak256(Buffer.from(message));
-
+    console.log(`Preparing to check ${message}`)
     // Define a list of expected addresses
     const expectedAddresses = [
       '0x492d553f456231c67dcd4a0f3603b3b1f2918a95'.toLowerCase(),
       '0xc5acf85fedb04cc84789e5d84c0dfcb74388c157'.toLowerCase(),
-      '0xeafdc02a5341a7b2542056a85b77a8db09a71fe9'.toLowerCase()
+      '0xeafdc02a5341a7b2542056a85b77a8db09a71fe9'.toLowerCase(),
+      '0xf86f2aa698732a9b00511b61f348981076e447b8'.toLowerCase(),
+      '0x3cca770bbe348cfc53e3b6348c18363a14cf1d38'.toLowerCase()
       // ... add more addresses as needed
     ];
 
@@ -352,7 +349,7 @@ app.post('/', async (req, res) => {
         '#t': [messageHash]
       }
     );
-    console.log(previousEvent)
+    console.log(`Checking if invoice was already published in nostr`)
     if (previousEvent) {
       res.json({
         message: "Invoice already paid"
@@ -361,7 +358,7 @@ app.post('/', async (req, res) => {
     }
 
     // Pay Invoice and store hash of signature at nostr
-
+    console.log(`Paying invoice`)
     let options = {
       url: `https://${process.env.REST_HOST}/v2/router/send`,
       // Work-around for self-signed certificates.
@@ -379,10 +376,11 @@ app.post('/', async (req, res) => {
 
     request.post(options, async function (error, response, body) {
       if (error) {
+        console.log(error)
         res.json(error);
         return;
       }
-      console.log(body)
+      console.log(`Invoice paid`)
 
       let event = {
         kind: 1,
@@ -396,10 +394,11 @@ app.post('/', async (req, res) => {
 
       event.id = getEventHash(event);
       event.sig = getSignature(event, sk);
+      console.log(`Publishing in nostr`)
+
       let pubs = pool.publish(relays, event);
-      await Promise.all(pubs)
-      await storeIdempotencyKey(idempotencyKey,body);
-      pool.close();
+      console.log(`Done`)
+
       res.json(body);
       return;
     });
@@ -413,6 +412,136 @@ app.post('/', async (req, res) => {
   return;
 });
 
+
+
+app.post('/payBlockchainTx', (req, res) => {
+  try {
+      console.log(req.body)
+      const sendTxPayload = req.body.sendTxPayload;
+      const chainId = req.body.chainId;
+      console.log(`ChainId: ${chainId}`)
+      const idempotencyKey = req.headers['idempotency-key'];
+
+      console.log('Idempotency Key:', idempotencyKey);
+      console.log('Sending tx:', JSON.stringify(sendTxPayload));
+
+
+      const nodeUrl = rpcNodes[chainId];
+      if(!nodeUrl){
+        res.status(500).json({ error: 'EVM chain not supported' });
+        return;
+      }
+      const options = {
+          url: nodeUrl,
+          headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+          },
+          body: JSON.stringify(sendTxPayload)
+      };
+
+      request.post(options, (error, response, body) => {
+          if (error) {
+              console.error('Error:', error);
+              res.status(500).json({ error: 'An error occurred while processing the transaction' });
+              return;
+          }
+
+          console.log('Transaction processed, returning response to client');
+          res.json(JSON.parse(body));
+      });
+  } catch (error) {
+      console.error('Error:', error);
+      res.status(500).json({ error: 'An error occurred while processing the transaction' });
+  }
+});
+
+
+
+app.post('/getEvents', (req, res) => {
+  try {
+      const sendTxPayload = req.body;
+      const idempotencyKey = req.headers['idempotency-key'];
+
+      console.log('Idempotency Key:', idempotencyKey);
+      console.log('Sending tx:', JSON.stringify(sendTxPayload));
+
+
+      const nodeUrl = rpcNodes[sendTxPayload.chainId];
+      if(!nodeUrl){
+        res.status(500).json({ error: 'EVM chain not supported' });
+      }
+      const options = {
+          url: nodeUrl,
+          headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+          },
+          body: JSON.stringify(sendTxPayload)
+      };
+
+      request.post(options, (error, response, body) => {
+          if (error) {
+              console.error('Error:', error);
+              res.status(500).json({ error: 'An error occurred while processing the transaction' });
+              return;
+          }
+
+          console.log('Transaction processed, returning response to client');
+          res.json(JSON.parse(body));
+      });
+  } catch (error) {
+      console.error('Error:', error);
+      res.status(500).json({ error: 'An error occurred while processing the transaction' });
+  }
+});
+
+
+
+app.post('/interactWithNode', (req, res) => {
+  try {
+      const sendTxPayload = req.body;
+      const idempotencyKey = req.headers['idempotency-key'];
+      console.log(sendTxPayload)
+      console.log('Idempotency Key:', idempotencyKey);
+      console.log('Sending tx:', JSON.stringify(sendTxPayload));
+
+      console.log(rpcNodes)
+      console.log(sendTxPayload.chainId)
+      let nodeUrl = rpcNodes[sendTxPayload.chainId];
+      console.log(`Using rpc ${nodeUrl}`);
+      if(!nodeUrl){
+        //res.status(500).json({ error: 'EVM chain not supported' });
+        //return
+        // test
+        nodeUrl = "https://rpc-mumbai.maticvigil.com"
+      }
+      const options = {
+          url: nodeUrl,
+          headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+          },
+          body: JSON.stringify(sendTxPayload)
+      };
+
+      request.post(options, (error, response, body) => {
+          if (error) {
+              console.error('Error:', error);
+              res.status(500).json({ error: 'An error occurred while processing the transaction' });
+              return;
+          }
+
+          console.log('Transaction processed, returning response to client');
+          res.json(JSON.parse(body));
+          return
+      });
+  } catch (error) {
+      console.error('Error:', error);
+      res.status(500).json({ error: 'An error occurred while processing the transaction' });
+      return
+  }
+});
 
 app.listen(process.env.PORT ? process.env.PORT : 8080, () => {
   console.log(`Service initiated at port ${process.env.PORT ? process.env.PORT : 8080}`)

@@ -421,6 +421,7 @@ app.post('/payBlockchainTx', (req, res) => {
     const chainId = req.body.chainId;
     console.log(`ChainId: ${chainId}`)
 
+
     const idempotencyKey = req.headers['idempotency-key'];
 
     console.log('Idempotency Key:', idempotencyKey);

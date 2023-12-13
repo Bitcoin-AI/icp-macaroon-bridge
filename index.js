@@ -197,7 +197,7 @@ app.post('/v1/invoices', (req, res) => {
   //const { value: amount, memo: evm_addr } = req.body;  // Updated this line
   const amount = req.body.value;
   const evm_addr = req.body.memo;
-  console.log("Request for invoice creation with amount "+amount+" and memo "+evm_addr);
+  console.log("Request for invoice creation with amount " + amount + " and memo " + evm_addr);
   // Validate that amount and evm_addr are defined
   if (!amount || !evm_addr) {
     res.status(400).json({ error: 'Both amount and evm_addr are required' });
@@ -302,7 +302,7 @@ app.post('/payInvoice', async (req, res) => {
 
     const signatureBase = "0x" + req.headers.signature;
     let message = req.body.payment_request;
-    message = message.substring( message.indexOf( "lntb" ), message.length - 1 );
+    message = message.substring(message.indexOf("lntb"), message.length - 1);
     const messageHash = ethers.utils.keccak256(Buffer.from(message));
     console.log(`Preparing to check ${message}`)
     // Define a list of expected addresses
@@ -416,43 +416,45 @@ app.post('/payInvoice', async (req, res) => {
 
 app.post('/payBlockchainTx', (req, res) => {
   try {
-      console.log(req.body)
-      const sendTxPayload = req.body.sendTxPayload;
-      const chainId = req.body.chainId;
-      console.log(`ChainId: ${chainId}`)
-      const idempotencyKey = req.headers['idempotency-key'];
-
-      console.log('Idempotency Key:', idempotencyKey);
-      console.log('Sending tx:', JSON.stringify(sendTxPayload));
+    console.log(req.body)
+    const sendTxPayload = req.body.sendTxPayload;
+    const chainId = req.body.chainId;
+    console.log(`ChainId: ${chainId}`)
 
 
-      const nodeUrl = rpcNodes[chainId];
-      if(!nodeUrl){
-        res.status(500).json({ error: 'EVM chain not supported' });
+    const idempotencyKey = req.headers['idempotency-key'];
+
+    console.log('Idempotency Key:', idempotencyKey);
+    console.log('Sending tx:', JSON.stringify(sendTxPayload));
+
+
+    const nodeUrl = rpcNodes[chainId];
+    if (!nodeUrl) {
+      res.status(500).json({ error: 'EVM chain not supported' });
+      return;
+    }
+    const options = {
+      url: nodeUrl,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(sendTxPayload)
+    };
+
+    request.post(options, (error, response, body) => {
+      if (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'An error occurred while processing the transaction' });
         return;
       }
-      const options = {
-          url: nodeUrl,
-          headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-          },
-          body: JSON.stringify(sendTxPayload)
-      };
 
-      request.post(options, (error, response, body) => {
-          if (error) {
-              console.error('Error:', error);
-              res.status(500).json({ error: 'An error occurred while processing the transaction' });
-              return;
-          }
-
-          console.log('Transaction processed, returning response to client');
-          res.json(JSON.parse(body));
-      });
+      console.log('Transaction processed, returning response to client');
+      res.json(JSON.parse(body));
+    });
   } catch (error) {
-      console.error('Error:', error);
-      res.status(500).json({ error: 'An error occurred while processing the transaction' });
+    console.error('Error:', error);
+    res.status(500).json({ error: 'An error occurred while processing the transaction' });
   }
 });
 
@@ -460,39 +462,39 @@ app.post('/payBlockchainTx', (req, res) => {
 
 app.post('/getEvents', (req, res) => {
   try {
-      const sendTxPayload = req.body;
-      const idempotencyKey = req.headers['idempotency-key'];
+    const sendTxPayload = req.body;
+    const idempotencyKey = req.headers['idempotency-key'];
 
-      console.log('Idempotency Key:', idempotencyKey);
-      console.log('Sending tx:', JSON.stringify(sendTxPayload));
+    console.log('Idempotency Key:', idempotencyKey);
+    console.log('Sending tx:', JSON.stringify(sendTxPayload));
 
 
-      const nodeUrl = rpcNodes[sendTxPayload.chainId];
-      if(!nodeUrl){
-        res.status(500).json({ error: 'EVM chain not supported' });
+    const nodeUrl = rpcNodes[sendTxPayload.chainId];
+    if (!nodeUrl) {
+      res.status(500).json({ error: 'EVM chain not supported' });
+    }
+    const options = {
+      url: nodeUrl,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(sendTxPayload)
+    };
+
+    request.post(options, (error, response, body) => {
+      if (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'An error occurred while processing the transaction' });
+        return;
       }
-      const options = {
-          url: nodeUrl,
-          headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-          },
-          body: JSON.stringify(sendTxPayload)
-      };
 
-      request.post(options, (error, response, body) => {
-          if (error) {
-              console.error('Error:', error);
-              res.status(500).json({ error: 'An error occurred while processing the transaction' });
-              return;
-          }
-
-          console.log('Transaction processed, returning response to client');
-          res.json(JSON.parse(body));
-      });
+      console.log('Transaction processed, returning response to client');
+      res.json(JSON.parse(body));
+    });
   } catch (error) {
-      console.error('Error:', error);
-      res.status(500).json({ error: 'An error occurred while processing the transaction' });
+    console.error('Error:', error);
+    res.status(500).json({ error: 'An error occurred while processing the transaction' });
   }
 });
 
@@ -500,46 +502,46 @@ app.post('/getEvents', (req, res) => {
 
 app.post('/interactWithNode', (req, res) => {
   try {
-      const sendTxPayload = req.body;
-      const idempotencyKey = req.headers['idempotency-key'];
-      console.log(sendTxPayload)
-      console.log('Idempotency Key:', idempotencyKey);
-      console.log('Sending tx:', JSON.stringify(sendTxPayload));
+    const sendTxPayload = req.body;
+    const idempotencyKey = req.headers['idempotency-key'];
+    console.log(sendTxPayload)
+    console.log('Idempotency Key:', idempotencyKey);
+    console.log('Sending tx:', JSON.stringify(sendTxPayload));
 
-      console.log(rpcNodes)
-      console.log(sendTxPayload.chainId)
-      let nodeUrl = rpcNodes[sendTxPayload.chainId];
-      console.log(`Using rpc ${nodeUrl}`);
-      if(!nodeUrl){
-        //res.status(500).json({ error: 'EVM chain not supported' });
-        //return
-        // test
-        nodeUrl = "https://rpc-mumbai.maticvigil.com"
+    console.log(rpcNodes)
+    console.log(sendTxPayload.chainId)
+    let nodeUrl = rpcNodes[sendTxPayload.chainId];
+    console.log(`Using rpc ${nodeUrl}`);
+    if (!nodeUrl) {
+      //res.status(500).json({ error: 'EVM chain not supported' });
+      //return
+      // test
+      nodeUrl = "https://rpc-mumbai.maticvigil.com"
+    }
+    const options = {
+      url: nodeUrl,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(sendTxPayload)
+    };
+
+    request.post(options, (error, response, body) => {
+      if (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'An error occurred while processing the transaction' });
+        return;
       }
-      const options = {
-          url: nodeUrl,
-          headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-          },
-          body: JSON.stringify(sendTxPayload)
-      };
 
-      request.post(options, (error, response, body) => {
-          if (error) {
-              console.error('Error:', error);
-              res.status(500).json({ error: 'An error occurred while processing the transaction' });
-              return;
-          }
-
-          console.log('Transaction processed, returning response to client');
-          res.json(JSON.parse(body));
-          return
-      });
-  } catch (error) {
-      console.error('Error:', error);
-      res.status(500).json({ error: 'An error occurred while processing the transaction' });
+      console.log('Transaction processed, returning response to client');
+      res.json(JSON.parse(body));
       return
+    });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'An error occurred while processing the transaction' });
+    return
   }
 });
 

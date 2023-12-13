@@ -62,7 +62,7 @@ const rpcNodes = {
   // RSK
   31: "https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/",
   // Mumbai
-  80001: `https://rpc-mumbai.maticvigil.com`
+  80001: `https://polygon-mumbai.blockpi.network/v1/rpc/public`
 }
 
 const pool = new SimplePool()

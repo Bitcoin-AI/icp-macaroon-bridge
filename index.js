@@ -536,7 +536,7 @@ app.post('/interactWithNode', (req, res) => {
         res.status(500).json({ error: 'An error occurred while processing the transaction' });
         return;
       }
-
+      console.log(body);
       console.log('Transaction processed, returning response to client');
       res.json(JSON.parse(body));
       return

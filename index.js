@@ -506,6 +506,9 @@ app.post('/getEvents', (req, res) => {
 
 app.post('/interactWithNode', (req, res) => {
   try {
+
+
+    console.log("req###", req);
     const sendTxPayload = req.body;
     const idempotencyKey = req.headers['idempotency-key'];
 

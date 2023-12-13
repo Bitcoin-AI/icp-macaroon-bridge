@@ -419,6 +419,7 @@ app.post('/payBlockchainTx', (req, res) => {
       console.log(req.body)
       const sendTxPayload = req.body.sendTxPayload;
       const chainId = req.body.chainId;
+      console.log(`ChainId: ${chainId}`)
       const idempotencyKey = req.headers['idempotency-key'];
 
       console.log('Idempotency Key:', idempotencyKey);
@@ -428,6 +429,7 @@ app.post('/payBlockchainTx', (req, res) => {
       const nodeUrl = rpcNodes[chainId];
       if(!nodeUrl){
         res.status(500).json({ error: 'EVM chain not supported' });
+        return;
       }
       const options = {
           url: nodeUrl,

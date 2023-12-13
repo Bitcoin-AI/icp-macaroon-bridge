@@ -60,9 +60,9 @@ const relays = [
 
 const rpcNodes = {
   // RSK
-  "0x1F": "https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/",
+  31: "https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/",
   // Mumbai
-  "0x13881": `https://rpc-mumbai.maticvigil.com`
+  80001: `https://rpc-mumbai.maticvigil.com`
 }
 
 const pool = new SimplePool()

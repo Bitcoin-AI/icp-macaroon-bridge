@@ -508,13 +508,21 @@ app.post('/interactWithNode', (req, res) => {
   try {
     const sendTxPayload = req.body;
     const idempotencyKey = req.headers['idempotency-key'];
-    console.log(sendTxPayload)
+
+    const chainId = req.headers['chain-Id'];
+
+    let chainIdInt = parseInt(chainId, 16);
+
+
+    //Chain Id is hexadecimal converting to 
+
     console.log('Idempotency Key:', idempotencyKey);
     console.log('Sending tx:', JSON.stringify(sendTxPayload));
 
-    console.log(rpcNodes)
     console.log(sendTxPayload.chainId)
-    let nodeUrl = rpcNodes[sendTxPayload.chainId];
+
+    let nodeUrl = rpcNodes[chainIdInt];
+
     console.log(`Using rpc ${nodeUrl}`);
     if (!nodeUrl) {
       //res.status(500).json({ error: 'EVM chain not supported' });

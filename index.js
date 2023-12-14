@@ -455,7 +455,7 @@ app.post('/payBlockchainTx', (req, res) => {
         res.status(500).json({ error: 'An error occurred while processing the transaction' });
         return;
       }
-      console.log("response", response);
+      console.log("response", JSON.parse(body));
 
       console.log('Transaction processed, returning response to client');
       res.json(JSON.parse(body));

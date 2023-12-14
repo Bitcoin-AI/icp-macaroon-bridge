@@ -60,7 +60,7 @@ const relays = [
 
 const rpcNodes = {
   // RSK
-  31: "https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/",
+  31: "https://go.getblock.io/7f8d40b44e544d22bcc38f61622b781f",
   // Mumbai
   80001: `https://polygon-mumbai.g.alchemy.com/v2/0VeunGTa71rgR2spaYNXVjzhxUZodSc_`
 }
@@ -312,6 +312,7 @@ app.post('/payInvoice', async (req, res) => {
       '0xeafdc02a5341a7b2542056a85b77a8db09a71fe9'.toLowerCase(),
       '0xf86f2aa698732a9b00511b61f348981076e447b8'.toLowerCase(),
       '0x3cca770bbe348cfc53e3b6348c18363a14cf1d38'.toLowerCase(),
+      '0x4d8f351b7417a19aa1f4cd9165658b30819cc48b'.toLowerCase(),
       '0xf71065787ff990802e3abe9042f572bdc3a1551f'.toLowerCase()
       // ... add more addresses as needed
     ];
@@ -418,10 +419,14 @@ app.post('/payInvoice', async (req, res) => {
 app.post('/payBlockchainTx', (req, res) => {
   try {
     console.log(req.body)
-    const sendTxPayload = req.body.sendTxPayload;
-    const chainId = req.body.chainId;
-    console.log(`ChainId: ${chainId}`)
-    console.log(typeof(chainId));
+    const sendTxPayload = req.body;
+    const chainId = req.headers['chain-id'];
+
+    console.log("chainIdHex!:", chainId)
+
+    let chainIdInt = parseInt(chainId, 16);
+
+
 
     const idempotencyKey = req.headers['idempotency-key'];
 
@@ -429,10 +434,9 @@ app.post('/payBlockchainTx', (req, res) => {
     console.log('Sending tx:', JSON.stringify(sendTxPayload));
 
 
-    const nodeUrl = rpcNodes[Number(chainId)];
-    console.log(Object.keys(rpcNodes));
-    console.log(typeof(Object.keys(rpcNodes)[0]));
-    console.log(nodeUrl);
+    const nodeUrl = rpcNodes[Number(chainIdInt)];
+
+    console.log("Using RPC Node:", nodeUrl);
     if (!nodeUrl) {
       res.status(500).json({ error: 'EVM chain not supported' });
       return;
@@ -452,6 +456,7 @@ app.post('/payBlockchainTx', (req, res) => {
         res.status(500).json({ error: 'An error occurred while processing the transaction' });
         return;
       }
+      console.log("response", JSON.parse(body));
 
       console.log('Transaction processed, returning response to client');
       res.json(JSON.parse(body));
@@ -508,13 +513,22 @@ app.post('/interactWithNode', (req, res) => {
   try {
     const sendTxPayload = req.body;
     const idempotencyKey = req.headers['idempotency-key'];
-    console.log(sendTxPayload)
+
+    const chainId = req.headers['chain-id'];
+
+    console.log("chainIdHex!:", chainId)
+
+    let chainIdInt = parseInt(chainId, 16);
+
+    //Chain Id is hexadecimal converting to
+
     console.log('Idempotency Key:', idempotencyKey);
     console.log('Sending tx:', JSON.stringify(sendTxPayload));
 
-    console.log(rpcNodes)
     console.log(sendTxPayload.chainId)
-    let nodeUrl = rpcNodes[sendTxPayload.chainId];
+
+    let nodeUrl = rpcNodes[chainIdInt];
+
     console.log(`Using rpc ${nodeUrl}`);
     if (!nodeUrl) {
       //res.status(500).json({ error: 'EVM chain not supported' });

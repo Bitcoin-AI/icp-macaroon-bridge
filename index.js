@@ -418,7 +418,7 @@ app.post('/payInvoice', async (req, res) => {
 app.post('/payBlockchainTx', (req, res) => {
   try {
     console.log(req.body)
-    const sendTxPayload = req.body.sendTxPayload;
+    const sendTxPayload = req.body;
     const chainId = req.headers['chain-id'];
 
     console.log("chainIdHex!:", chainId)

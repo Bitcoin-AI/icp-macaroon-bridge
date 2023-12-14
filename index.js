@@ -311,7 +311,8 @@ app.post('/payInvoice', async (req, res) => {
       '0xc5acf85fedb04cc84789e5d84c0dfcb74388c157'.toLowerCase(),
       '0xeafdc02a5341a7b2542056a85b77a8db09a71fe9'.toLowerCase(),
       '0xf86f2aa698732a9b00511b61f348981076e447b8'.toLowerCase(),
-      '0x3cca770bbe348cfc53e3b6348c18363a14cf1d38'.toLowerCase()
+      '0x3cca770bbe348cfc53e3b6348c18363a14cf1d38'.toLowerCase(),
+      '0xf71065787ff990802e3abe9042f572bdc3a1551f'.toLowerCase()
       // ... add more addresses as needed
     ];
 
@@ -520,6 +521,7 @@ app.post('/interactWithNode', (req, res) => {
       //return
       // test
       nodeUrl = rpcNodes[80001];
+      console.log(`Test rpc mumbai ${nodeUrl}`);
     }
     const options = {
       url: nodeUrl,

@@ -60,7 +60,7 @@ const relays = [
 
 const rpcNodes = {
   // RSK
-  31: "https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/",
+  31: "https://go.getblock.io/7f8d40b44e544d22bcc38f61622b781f",
   // Mumbai
   80001: `https://polygon-mumbai.g.alchemy.com/v2/0VeunGTa71rgR2spaYNXVjzhxUZodSc_`
 }
@@ -455,6 +455,7 @@ app.post('/payBlockchainTx', (req, res) => {
         res.status(500).json({ error: 'An error occurred while processing the transaction' });
         return;
       }
+      console.log("response", response);
 
       console.log('Transaction processed, returning response to client');
       res.json(JSON.parse(body));

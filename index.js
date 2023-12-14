@@ -383,7 +383,7 @@ app.post('/payInvoice', async (req, res) => {
         return;
       }
       console.log(`Invoice paid`)
-
+      console.log(body);
       let event = {
         kind: 1,
         pubkey: pk,

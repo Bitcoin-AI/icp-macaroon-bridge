@@ -302,7 +302,8 @@ app.post('/payInvoice', async (req, res) => {
 
     const signatureBase = "0x" + req.headers.signature;
     let message = req.body.payment_request;
-    message = message.substring(message.indexOf("lntb"), message.length - 1);
+    console.log(`Invoice to be paid: ${message}`);
+    //message = message.substring(message.indexOf("lntb"), message.length - 1);
     const messageHash = ethers.utils.keccak256(Buffer.from(message));
     console.log(`Preparing to check ${message}`)
     // Define a list of expected addresses

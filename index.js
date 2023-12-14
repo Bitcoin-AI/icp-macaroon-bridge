@@ -316,7 +316,7 @@ app.post('/payInvoice', async (req, res) => {
       '0xf71065787ff990802e3abe9042f572bdc3a1551f'.toLowerCase()
       // ... add more addresses as needed
     ];
-
+    /*
     // Try both possible v values for chain ID 31
     const vValues = ['59', '5a'];
     let isValidSignature = false;
@@ -343,7 +343,7 @@ app.post('/payInvoice', async (req, res) => {
       return;
     }
 
-
+    */
     const previousEvent = await pool.get(relays,
       {
         kinds: [1],

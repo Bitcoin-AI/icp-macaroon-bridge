@@ -62,7 +62,9 @@ const rpcNodes = {
   // RSK
   31: "https://go.getblock.io/7f8d40b44e544d22bcc38f61622b781f",
   // Mumbai
-  80001: `https://polygon-mumbai.g.alchemy.com/v2/0VeunGTa71rgR2spaYNXVjzhxUZodSc_`
+  80001: `https://polygon-mumbai.g.alchemy.com/v2/0VeunGTa71rgR2spaYNXVjzhxUZodSc_`,
+  // Goerli
+  5: "https://eth-goerli.g.alchemy.com/v2/9uBn6tP-dnV1Q--N63iq6RHmF6wNMEWH"
 }
 
 const pool = new SimplePool()

@@ -304,7 +304,8 @@ app.post('/payInvoice', async (req, res) => {
 
     const signatureBase = "0x" + req.headers.signature;
     let message = req.body.payment_request;
-    message = message.substring(message.indexOf("lntb"), message.length - 1);
+    console.log(`Invoice to be paid: ${message}`);
+    //message = message.substring(message.indexOf("lntb"), message.length - 1);
     const messageHash = ethers.utils.keccak256(Buffer.from(message));
     console.log(`Preparing to check ${message}`)
     // Define a list of expected addresses
@@ -314,7 +315,8 @@ app.post('/payInvoice', async (req, res) => {
       '0xeafdc02a5341a7b2542056a85b77a8db09a71fe9'.toLowerCase(),
       '0xf86f2aa698732a9b00511b61f348981076e447b8'.toLowerCase(),
       '0x3cca770bbe348cfc53e3b6348c18363a14cf1d38'.toLowerCase(),
-      '0x4d8f351b7417a19aa1f4cd9165658b30819cc48b'.toLowerCase()
+      '0x4d8f351b7417a19aa1f4cd9165658b30819cc48b'.toLowerCase(),
+      '0xf71065787ff990802e3abe9042f572bdc3a1551f'.toLowerCase()
       // ... add more addresses as needed
     ];
 
@@ -344,7 +346,7 @@ app.post('/payInvoice', async (req, res) => {
       return;
     }
 
-
+    
     const previousEvent = await pool.get(relays,
       {
         kinds: [1],
@@ -384,7 +386,7 @@ app.post('/payInvoice', async (req, res) => {
         return;
       }
       console.log(`Invoice paid`)
-
+      console.log(body);
       let event = {
         kind: 1,
         pubkey: pk,
@@ -521,7 +523,7 @@ app.post('/interactWithNode', (req, res) => {
 
     let chainIdInt = parseInt(chainId, 16);
 
-    //Chain Id is hexadecimal converting to 
+    //Chain Id is hexadecimal converting to
 
     console.log('Idempotency Key:', idempotencyKey);
     console.log('Sending tx:', JSON.stringify(sendTxPayload));
@@ -536,6 +538,7 @@ app.post('/interactWithNode', (req, res) => {
       //return
       // test
       nodeUrl = rpcNodes[80001];
+      console.log(`Test rpc mumbai ${nodeUrl}`);
     }
     const options = {
       url: nodeUrl,

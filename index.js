@@ -391,7 +391,6 @@ app.post('/payInvoice', async (req, res) => {
         res.json(error);
         return;
       }
-      console.log(body.result);
       console.log(body)
       const status = body.status;
       if(status === "FAILED"){
@@ -399,7 +398,7 @@ app.post('/payInvoice', async (req, res) => {
         res.json(body);
         return;
       }
-      if(status === "SUCCEEDED"){
+      //if(status === "SUCCEEDED"){
         console.log(`Invoice paid`)
         let event = {
           kind: 1,
@@ -420,7 +419,7 @@ app.post('/payInvoice', async (req, res) => {
 
         res.json(body);
         return;
-      }
+      //}
     });
 
 

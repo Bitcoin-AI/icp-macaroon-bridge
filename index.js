@@ -44,7 +44,7 @@ const db = new Firestore({
 
 app.use(express.json());
 
-let rpcNodes = [];
+let rpcNodes = {};
 let options = {
   url: `https://chainid.network/chains.json`,
   // Work-around for self-signed certificates.
@@ -54,24 +54,10 @@ let options = {
 request.get(options, function (error, response, body) {
   body.map(item => {
     if(item.rpc[0]){
-      console.log(item.rpc[0])
-      rpcNodes.push({ [Number(item.chainId)]: item.rpc[0].replace("${INFURA_API_KEY}",process.env.INFURA_API_KEY).replace("${ALCHEMY_API_KEY}",process.env.ALCHEMY_API_KEY) })
+      rpcNodes[item.chainId] = item.rpc[0].replace("${INFURA_API_KEY}",process.env.INFURA_API_KEY).replace("${ALCHEMY_API_KEY}",process.env.ALCHEMY_API_KEY);
     }
-    /*
-    const rpc = item.rpc.filter(rpc => {
-      if(rpc.indexOf("INFURA_API_KEY") !== -1 || rpc.indexOf("rsk") !== -1 || rpc.indexOf("mumbai") !== -1){
-        console.log(rpc)
-        return(rpc)
-      }
-    });
-    if(rpc.length > 0){
-      console.log({ [Number(item.chainId)]: rpc[0] })
-      rpcNodes.push({ [Number(item.chainId)]: rpc[0] })
-    }
-    */
   });
-  console.log(rpcNodes);
-
+  //console.log(rpcNodes)
 });
 
 
@@ -406,6 +392,11 @@ app.post('/payInvoice', async (req, res) => {
         return;
       }
       console.log(body);
+      if(body.status === "FAILED"){
+        console.log("Payment failed");
+        res.json(body);
+        return;
+      }
       if(body.status === "SUCCEEDED"){
         console.log(`Invoice paid`)
         console.log(body);

@@ -57,7 +57,6 @@ request.get(options, function (error, response, body) {
       rpcNodes[Number(item.chainId)] = item.rpc[0].replace("${INFURA_API_KEY}",process.env.INFURA_API_KEY).replace("${ALCHEMY_API_KEY}",process.env.ALCHEMY_API_KEY);
     }
   });
-  console.log(rpcNodes)
 });
 
 
@@ -311,6 +310,7 @@ app.post('/payInvoice', async (req, res) => {
     const signatureBase = "0x" + req.headers.signature;
     let message = req.body.payment_request;
     console.log(`Invoice to be paid: ${message}`);
+  
     //message = message.substring(message.indexOf("lntb"), message.length - 1);
     const messageHash = ethers.utils.keccak256(Buffer.from(message));
     console.log(`Preparing to check ${message}`)
@@ -391,35 +391,27 @@ app.post('/payInvoice', async (req, res) => {
         res.json(error);
         return;
       }
-      console.log(body)
-      const status = body.status;
-      if(status === "FAILED"){
-        console.log("Payment failed");
-        res.json(body);
-        return;
+      console.log(body);
+      console.log(`Invoice paid`)
+      let event = {
+        kind: 1,
+        pubkey: pk,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [
+          ['t', messageHash]
+        ],
+        content: `Paid ${message}`
       }
-      //if(status === "SUCCEEDED"){
-        console.log(`Invoice paid`)
-        let event = {
-          kind: 1,
-          pubkey: pk,
-          created_at: Math.floor(Date.now() / 1000),
-          tags: [
-            ['t', messageHash]
-          ],
-          content: `Paid ${message}`
-        }
 
-        event.id = getEventHash(event);
-        event.sig = getSignature(event, sk);
-        console.log(`Publishing in nostr`)
+      event.id = getEventHash(event);
+      event.sig = getSignature(event, sk);
+      console.log(`Publishing in nostr`)
 
-        let pubs = pool.publish(relays, event);
-        console.log(`Done`)
+      let pubs = pool.publish(relays, event);
+      console.log(`Done`)
+      res.json(body);
+      return;
 
-        res.json(body);
-        return;
-      //}
     });
 
 

@@ -391,10 +391,8 @@ app.post('/payInvoice', async (req, res) => {
         res.json(error);
         return;
       }
-      console.log(response);
-      console.log(body);
-      console.log(body.status);
-      const status = response.status;
+      console.log(JSON.parse(body).result);
+      const status = JSON.parse(body).result.status;
       if(status === "FAILED"){
         console.log("Payment failed");
         res.json(body);

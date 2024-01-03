@@ -20,7 +20,6 @@ import { Firestore } from '@google-cloud/firestore';
 import dotenv from 'dotenv';
 
 
-
 dotenv.config({ path: './.env' });
 
 const app = express();
@@ -45,7 +44,35 @@ const db = new Firestore({
 
 app.use(express.json());
 
+let rpcNodes = [];
+let options = {
+  url: `https://chainid.network/chains.json`,
+  // Work-around for self-signed certificates.
+  rejectUnauthorized: false,
+  json: true
+}
+request.get(options, function (error, response, body) {
+  body.map(item => {
+    if(item.rpc[0]){
+      console.log(item.rpc[0])
+      rpcNodes.push({ [Number(item.chainId)]: item.rpc[0].replace("${INFURA_API_KEY}",process.env.INFURA_API_KEY).replace("${ALCHEMY_API_KEY}",process.env.ALCHEMY_API_KEY) })
+    }
+    /*
+    const rpc = item.rpc.filter(rpc => {
+      if(rpc.indexOf("INFURA_API_KEY") !== -1 || rpc.indexOf("rsk") !== -1 || rpc.indexOf("mumbai") !== -1){
+        console.log(rpc)
+        return(rpc)
+      }
+    });
+    if(rpc.length > 0){
+      console.log({ [Number(item.chainId)]: rpc[0] })
+      rpcNodes.push({ [Number(item.chainId)]: rpc[0] })
+    }
+    */
+  });
+  console.log(rpcNodes);
 
+});
 
 
 
@@ -58,12 +85,7 @@ const relays = [
   //'wss://nostr-01.bolt.observer'
 ]
 
-const rpcNodes = {
-  // RSK
-  31: "https://go.getblock.io/7f8d40b44e544d22bcc38f61622b781f",
-  // Mumbai
-  80001: `https://polygon-mumbai.g.alchemy.com/v2/0VeunGTa71rgR2spaYNXVjzhxUZodSc_`
-}
+
 
 const pool = new SimplePool()
 
@@ -344,7 +366,7 @@ app.post('/payInvoice', async (req, res) => {
       return;
     }
 
-    
+
     const previousEvent = await pool.get(relays,
       {
         kinds: [1],
@@ -383,27 +405,30 @@ app.post('/payInvoice', async (req, res) => {
         res.json(error);
         return;
       }
-      console.log(`Invoice paid`)
       console.log(body);
-      let event = {
-        kind: 1,
-        pubkey: pk,
-        created_at: Math.floor(Date.now() / 1000),
-        tags: [
-          ['t', messageHash]
-        ],
-        content: `Paid ${message}`
+      if(body.status === "SUCCEEDED"){
+        console.log(`Invoice paid`)
+        console.log(body);
+        let event = {
+          kind: 1,
+          pubkey: pk,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [
+            ['t', messageHash]
+          ],
+          content: `Paid ${message}`
+        }
+
+        event.id = getEventHash(event);
+        event.sig = getSignature(event, sk);
+        console.log(`Publishing in nostr`)
+
+        let pubs = pool.publish(relays, event);
+        console.log(`Done`)
+
+        res.json(body);
+        return;
       }
-
-      event.id = getEventHash(event);
-      event.sig = getSignature(event, sk);
-      console.log(`Publishing in nostr`)
-
-      let pubs = pool.publish(relays, event);
-      console.log(`Done`)
-
-      res.json(body);
-      return;
     });
 
 
@@ -478,10 +503,14 @@ app.post('/getEvents', (req, res) => {
     console.log('Idempotency Key:', idempotencyKey);
     console.log('Sending tx:', JSON.stringify(sendTxPayload));
 
+    let chainIdInt = parseInt(chainId, 16);
 
-    const nodeUrl = rpcNodes[sendTxPayload.chainId];
+    const nodeUrl = rpcNodes[Number(chainIdInt)];
+
+    console.log("Using RPC Node:", nodeUrl);
     if (!nodeUrl) {
       res.status(500).json({ error: 'EVM chain not supported' });
+      return;
     }
     const options = {
       url: nodeUrl,
@@ -528,15 +557,12 @@ app.post('/interactWithNode', (req, res) => {
 
     console.log(sendTxPayload.chainId)
 
-    let nodeUrl = rpcNodes[chainIdInt];
+    const nodeUrl = rpcNodes[Number(chainIdInt)];
 
-    console.log(`Using rpc ${nodeUrl}`);
+    console.log("Using RPC Node:", nodeUrl);
     if (!nodeUrl) {
-      //res.status(500).json({ error: 'EVM chain not supported' });
-      //return
-      // test
-      nodeUrl = rpcNodes[80001];
-      console.log(`Test rpc mumbai ${nodeUrl}`);
+      res.status(500).json({ error: 'EVM chain not supported' });
+      return;
     }
     const options = {
       url: nodeUrl,

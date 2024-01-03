@@ -54,10 +54,10 @@ let options = {
 request.get(options, function (error, response, body) {
   body.map(item => {
     if(item.rpc[0]){
-      rpcNodes[item.chainId] = item.rpc[0].replace("${INFURA_API_KEY}",process.env.INFURA_API_KEY).replace("${ALCHEMY_API_KEY}",process.env.ALCHEMY_API_KEY);
+      rpcNodes[Number(item.chainId)] = item.rpc[0].replace("${INFURA_API_KEY}",process.env.INFURA_API_KEY).replace("${ALCHEMY_API_KEY}",process.env.ALCHEMY_API_KEY);
     }
   });
-  //console.log(rpcNodes)
+  console.log(rpcNodes)
 });
 
 
@@ -392,12 +392,14 @@ app.post('/payInvoice', async (req, res) => {
         return;
       }
       console.log(body);
-      if(body.status === "FAILED"){
+      console.log(body.result);
+      const status = body.result.status;
+      if(status === "FAILED"){
         console.log("Payment failed");
         res.json(body);
         return;
       }
-      if(body.status === "SUCCEEDED"){
+      if(status === "SUCCEEDED"){
         console.log(`Invoice paid`)
         console.log(body);
         let event = {

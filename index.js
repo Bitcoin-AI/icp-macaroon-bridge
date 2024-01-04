@@ -435,59 +435,61 @@ app.post('/payBlockchainTx', (req, res) => {
         rpcNodes[Number(item.chainId)] = item.rpc[0].replace("${INFURA_API_KEY}", process.env.INFURA_API_KEY).replace("${ALCHEMY_API_KEY}", process.env.ALCHEMY_API_KEY);
       }
     });
-  });
 
-  console.log("RPC nodes requested", rpcNodes[0])
-
-
-  try {
-    console.log(req.body)
-    const sendTxPayload = req.body;
-    const chainId = req.headers['chain-id'];
-
-    console.log("chainIdHex!:", chainId)
-
-    let chainIdInt = parseInt(chainId, 16);
+    console.log("RPC nodes requested", rpcNodes[1])
 
 
+    try {
+      console.log(req.body)
+      const sendTxPayload = req.body;
+      const chainId = req.headers['chain-id'];
 
-    const idempotencyKey = req.headers['idempotency-key'];
+      console.log("chainIdHex!:", chainId)
 
-    console.log('Idempotency Key:', idempotencyKey);
-    console.log('Sending tx:', JSON.stringify(sendTxPayload));
+      let chainIdInt = parseInt(chainId, 16);
 
 
-    const nodeUrl = rpcNodes[Number(chainIdInt)];
 
-    console.log("Using RPC Node:", nodeUrl);
-    if (!nodeUrl) {
-      res.status(500).json({ error: 'EVM chain not supported' });
-      return;
-    }
-    const options = {
-      url: nodeUrl,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify(sendTxPayload)
-    };
+      const idempotencyKey = req.headers['idempotency-key'];
 
-    request.post(options, (error, response, body) => {
-      if (error) {
-        console.error('Error:', error);
-        res.status(500).json({ error: 'An error occurred while processing the transaction' });
+      console.log('Idempotency Key:', idempotencyKey);
+      console.log('Sending tx:', JSON.stringify(sendTxPayload));
+
+
+      const nodeUrl = rpcNodes[Number(chainIdInt)];
+
+      console.log("Using RPC Node:", nodeUrl);
+      if (!nodeUrl) {
+        res.status(500).json({ error: 'EVM chain not supported' });
         return;
       }
-      console.log("response", JSON.parse(body));
+      const options = {
+        url: nodeUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(sendTxPayload)
+      };
 
-      console.log('Transaction processed, returning response to client');
-      res.json(JSON.parse(body));
-    });
-  } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ error: 'An error occurred while processing the transaction' });
-  }
+      request.post(options, (error, response, body) => {
+        if (error) {
+          console.error('Error:', error);
+          res.status(500).json({ error: 'An error occurred while processing the transaction' });
+          return;
+        }
+        console.log("response", JSON.parse(body));
+
+        console.log('Transaction processed, returning response to client');
+        res.json(JSON.parse(body));
+      });
+    } catch (error) {
+      console.error('Error:', error);
+      res.status(500).json({ error: 'An error occurred while processing the transaction' });
+    }
+  });
+
+
 });
 
 
@@ -553,58 +555,61 @@ app.post('/interactWithNode', (req, res) => {
         rpcNodes[Number(item.chainId)] = item.rpc[0].replace("${INFURA_API_KEY}", process.env.INFURA_API_KEY).replace("${ALCHEMY_API_KEY}", process.env.ALCHEMY_API_KEY);
       }
     });
-  });
 
-  console.log("RPC nodes requested", rpcNodes[0])
-  try {
-    const sendTxPayload = req.body;
-    const idempotencyKey = req.headers['idempotency-key'];
 
-    const chainId = req.headers['chain-id'];
+    console.log("RPC nodes requested", rpcNodes[1])
+    try {
+      const sendTxPayload = req.body;
+      const idempotencyKey = req.headers['idempotency-key'];
 
-    console.log("chainIdHex!:", chainId)
+      const chainId = req.headers['chain-id'];
 
-    let chainIdInt = parseInt(chainId, 16);
+      console.log("chainIdHex!:", chainId)
 
-    //Chain Id is hexadecimal converting to
+      let chainIdInt = parseInt(chainId, 16);
 
-    console.log('Idempotency Key:', idempotencyKey);
-    console.log('Sending tx:', JSON.stringify(sendTxPayload));
+      //Chain Id is hexadecimal converting to
 
-    console.log(sendTxPayload.chainId)
+      console.log('Idempotency Key:', idempotencyKey);
+      console.log('Sending tx:', JSON.stringify(sendTxPayload));
 
-    const nodeUrl = rpcNodes[Number(chainIdInt)];
+      console.log(sendTxPayload.chainId)
 
-    console.log("Using RPC Node:", nodeUrl);
-    if (!nodeUrl) {
-      res.status(500).json({ error: 'EVM chain not supported' });
-      return;
-    }
-    const options = {
-      url: nodeUrl,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify(sendTxPayload)
-    };
+      const nodeUrl = rpcNodes[Number(chainIdInt)];
 
-    request.post(options, (error, response, body) => {
-      if (error) {
-        console.error('Error:', error);
-        res.status(500).json({ error: 'An error occurred while processing the transaction' });
+      console.log("Using RPC Node:", nodeUrl);
+      if (!nodeUrl) {
+        res.status(500).json({ error: 'EVM chain not supported' });
         return;
       }
-      console.log(body);
-      console.log('Transaction processed, returning response to client');
-      res.json(JSON.parse(body));
+      const options = {
+        url: nodeUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(sendTxPayload)
+      };
+
+      request.post(options, (error, response, body) => {
+        if (error) {
+          console.error('Error:', error);
+          res.status(500).json({ error: 'An error occurred while processing the transaction' });
+          return;
+        }
+        console.log(body);
+        console.log('Transaction processed, returning response to client');
+        res.json(JSON.parse(body));
+        return
+      });
+    } catch (error) {
+      console.error('Error:', error);
+      res.status(500).json({ error: 'An error occurred while processing the transaction' });
       return
-    });
-  } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ error: 'An error occurred while processing the transaction' });
-    return
-  }
+    }
+  });
+
+
 });
 
 app.listen(process.env.PORT ? process.env.PORT : 8080, () => {

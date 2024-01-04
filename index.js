@@ -57,6 +57,8 @@ request.get(options, function (error, response, body) {
       rpcNodes[Number(item.chainId)] = item.rpc[0].replace("${INFURA_API_KEY}",process.env.INFURA_API_KEY).replace("${ALCHEMY_API_KEY}",process.env.ALCHEMY_API_KEY);
     }
   });
+  console.log(rpcNodes)
+  console.log(rpcNodes[Number(0x05)])
 });
 
 
@@ -310,7 +312,7 @@ app.post('/payInvoice', async (req, res) => {
     const signatureBase = "0x" + req.headers.signature;
     let message = req.body.payment_request;
     console.log(`Invoice to be paid: ${message}`);
-  
+
     //message = message.substring(message.indexOf("lntb"), message.length - 1);
     const messageHash = ethers.utils.keccak256(Buffer.from(message));
     console.log(`Preparing to check ${message}`)
@@ -322,7 +324,8 @@ app.post('/payInvoice', async (req, res) => {
       '0xf86f2aa698732a9b00511b61f348981076e447b8'.toLowerCase(),
       '0x3cca770bbe348cfc53e3b6348c18363a14cf1d38'.toLowerCase(),
       '0x4d8f351b7417a19aa1f4cd9165658b30819cc48b'.toLowerCase(),
-      '0xf71065787ff990802e3abe9042f572bdc3a1551f'.toLowerCase()
+      '0xf71065787ff990802e3abe9042f572bdc3a1551f'.toLowerCase(),
+      '0xd230d37fe70596a6d73f6c1fa1a2ab1448cc31fe'.toLowerCase()
       // ... add more addresses as needed
     ];
 

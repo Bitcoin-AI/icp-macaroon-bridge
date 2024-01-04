@@ -57,8 +57,6 @@ request.get(options, function (error, response, body) {
       rpcNodes[Number(item.chainId)] = item.rpc[0].replace("${INFURA_API_KEY}",process.env.INFURA_API_KEY).replace("${ALCHEMY_API_KEY}",process.env.ALCHEMY_API_KEY);
     }
   });
-  console.log(rpcNodes)
-  console.log(rpcNodes[Number(0x05)])
 });
 
 
@@ -115,22 +113,19 @@ app.use(async (req, res, next) => {
       const { json: originalJson } = res;
       res.json = function (body) {
         originalJson.call(this, body);
+        const data = {
+          idempotencyKey,
+          responseData: body,
+        };
 
-        if (res.statusCode === 200) {
-          const data = {
-            idempotencyKey,
-            responseData: body,
-          };
-
-          db.collection('test')
-            .doc(idempotencyKey)
-            .set(data)
-            .then(() => {
-              console.log('Data stored in Firestore');
-              ongoingRequests.delete(idempotencyKey);
-            })
-            .catch((error) => console.error('Error storing data in Firestore:', error));
-        }
+        db.collection('test')
+          .doc(idempotencyKey)
+          .set(data)
+          .then(() => {
+            console.log('Data stored in Firestore');
+            ongoingRequests.delete(idempotencyKey);
+          })
+          .catch((error) => console.error('Error storing data in Firestore:', error));
       };
     }
 
@@ -303,7 +298,7 @@ app.get('/v1/getinfo', (req, res) => {
 // Post to pay invoice to user, verify conditions firts (must come from canister)
 app.post('/payInvoice', async (req, res) => {
   try {
-
+    
     const sk = process.env.NOSTR_SK;
     const pk = getPublicKey(sk);
 

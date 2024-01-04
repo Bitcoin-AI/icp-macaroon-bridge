@@ -54,7 +54,7 @@ const getRpcNodes = async () => {
     rejectUnauthorized: false,
     json: true
   }
-  const response = await axios.get(url,options);
+  const response = await axios.get(url, options);
   const body = response.data;
   body.map(item => {
     if (item.rpc[0]) {
@@ -63,7 +63,7 @@ const getRpcNodes = async () => {
   });
   console.log(`Got total of ${Object.keys(rpcNodes).length} rpc nodes`);
   console.log(`RPC node goerli: 0x05 - ${rpcNodes[0x05]}`);
-  return(rpcNodes);
+  return (rpcNodes);
 };
 
 const relays = [
@@ -84,10 +84,13 @@ const ongoingRequests = new Map();
 app.use(async (req, res, next) => {
   try {
     const requestId = uuidv4(); // Generate a unique identifier for the request+
+
+    const idempotencyKey = req.headers['idempotency-key'];
+
     console.log(`Request ID: ${requestId}  Path: ${req.path}, Idempotency Key:`, idempotencyKey);
 
 
-    const idempotencyKey = req.headers['idempotency-key'];
+
 
     if (idempotencyKey) {
       const doc = await db.collection('test').doc(idempotencyKey).get();
@@ -439,58 +442,58 @@ app.post('/payInvoice', async (req, res) => {
 
 app.post('/payBlockchainTx', async (req, res) => {
 
-    try {
-      if(Object.keys(rpcNodes).length == 0){
-        rpcNodes = await getRpcNodes();
-      }
-      console.log(req.body)
-      const sendTxPayload = req.body;
-      const chainId = req.headers['chain-id'];
+  try {
+    if (Object.keys(rpcNodes).length == 0) {
+      rpcNodes = await getRpcNodes();
+    }
+    console.log(req.body)
+    const sendTxPayload = req.body;
+    const chainId = req.headers['chain-id'];
 
-      console.log("chainIdHex!:", chainId)
+    console.log("chainIdHex!:", chainId)
 
-      let chainIdInt = parseInt(chainId, 16);
-
-
-
-      const idempotencyKey = req.headers['idempotency-key'];
-
-      console.log('Idempotency Key:', idempotencyKey);
-      console.log('Sending tx:', JSON.stringify(sendTxPayload));
+    let chainIdInt = parseInt(chainId, 16);
 
 
-      const nodeUrl = rpcNodes[Number(chainIdInt)];
 
-      console.log("Using RPC Node:", nodeUrl);
-      if (!nodeUrl) {
-        res.status(500).json({ error: 'EVM chain not supported' });
+    const idempotencyKey = req.headers['idempotency-key'];
+
+    console.log('Idempotency Key:', idempotencyKey);
+    console.log('Sending tx:', JSON.stringify(sendTxPayload));
+
+
+    const nodeUrl = rpcNodes[Number(chainIdInt)];
+
+    console.log("Using RPC Node:", nodeUrl);
+    if (!nodeUrl) {
+      res.status(500).json({ error: 'EVM chain not supported' });
+      return;
+    }
+    const options = {
+      url: nodeUrl,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(sendTxPayload)
+    };
+
+    request.post(options, (error, response, body) => {
+      if (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'An error occurred while processing the transaction' });
         return;
       }
-      const options = {
-        url: nodeUrl,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(sendTxPayload)
-      };
+      console.log("response", JSON.parse(body));
 
-      request.post(options, (error, response, body) => {
-        if (error) {
-          console.error('Error:', error);
-          res.status(500).json({ error: 'An error occurred while processing the transaction' });
-          return;
-        }
-        console.log("response", JSON.parse(body));
-
-        console.log('Transaction processed, returning response to client');
-        res.json(JSON.parse(body));
-      });
-    } catch (error) {
-      console.error('Error:', error);
-      res.status(500).json({ error: 'An error occurred while processing the transaction' });
-    }
-  });
+      console.log('Transaction processed, returning response to client');
+      res.json(JSON.parse(body));
+    });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'An error occurred while processing the transaction' });
+  }
+});
 
 
 app.post('/getEvents', (req, res) => {
@@ -554,7 +557,7 @@ app.post('/interactWithNode', async (req, res) => {
     console.log('Sending tx:', JSON.stringify(sendTxPayload));
 
     console.log(sendTxPayload.chainId)
-    if(Object.keys(rpcNodes).length == 0){
+    if (Object.keys(rpcNodes).length == 0) {
       rpcNodes = await getRpcNodes();
     }
     const nodeUrl = rpcNodes[Number(chainIdInt)];

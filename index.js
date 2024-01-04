@@ -98,7 +98,7 @@ app.use(async (req, res, next) => {
         setTimeout(async () => {
           const docAfterWait = await db.collection('test').doc(idempotencyKey).get();
           if (docAfterWait.exists) {
-            console.log('Found stored response after waiting');
+            console.log(`Request ID: ${requestId} -- Found stored response after waiting`);
             return res.json(docAfterWait.data().responseData);
           } else {
             console.log(`Request ID: ${requestId} -- No stored response found after waiting, proceeding to handle request`);

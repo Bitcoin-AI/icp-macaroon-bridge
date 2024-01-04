@@ -351,21 +351,6 @@ app.post('/payInvoice', async (req, res) => {
     }
 
 
-    const previousEvent = await pool.get(relays,
-      {
-        kinds: [1],
-        authors: [pk],
-        '#t': [messageHash]
-      }
-    );
-    console.log(`Checking if invoice was already published in nostr`)
-    if (previousEvent) {
-      res.json({
-        message: "Invoice already paid"
-      });
-      return;
-    }
-
     // Pay Invoice and store hash of signature at nostr
     console.log(`Paying invoice`)
     let options = {
@@ -387,22 +372,6 @@ app.post('/payInvoice', async (req, res) => {
 
       console.log(body);
       console.log(`Invoice paid`)
-      let event = {
-        kind: 1,
-        pubkey: pk,
-        created_at: Math.floor(Date.now() / 1000),
-        tags: [
-          ['t', messageHash]
-        ],
-        content: `Paid ${message}`
-      }
-
-      event.id = getEventHash(event);
-      event.sig = getSignature(event, sk);
-      console.log(`Publishing in nostr`)
-
-      let pubs = pool.publish(relays, event);
-      console.log(`Done`)
       res.json(body);
       return;
 

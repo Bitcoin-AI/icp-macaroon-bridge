@@ -84,17 +84,16 @@ const ongoingRequests = new Map();
 app.use(async (req, res, next) => {
   try {
     const requestId = uuidv4(); // Generate a unique identifier for the request+
-    console.log(`Request ID: ${requestId} - Received request from IP: ${req.ip}, Path: ${req.path}, Method: ${req.method}`);
+    console.log(`Request ID: ${requestId}  Path: ${req.path}, Idempotency Key:`, idempotencyKey);
 
 
     const idempotencyKey = req.headers['idempotency-key'];
-    console.log(`Request ID: ${requestId} - Idempotency Key:`, idempotencyKey);
 
     if (idempotencyKey) {
       const doc = await db.collection('test').doc(idempotencyKey).get();
 
       if (doc.exists) {
-        console.log('Request already processed, returning stored response');
+        console.log(`Request ID: ${requestId}  --Request already processed, returning stored response`);
         return res.json(doc.data().responseData); // Return the stored response
       } else if (ongoingRequests.has(idempotencyKey)) {
         console.log(`Request ID: ${requestId} -- Duplicate request detected, waiting for a bit before re-checking Firestore`);
@@ -108,7 +107,7 @@ app.use(async (req, res, next) => {
             console.log(`Request ID: ${requestId} -- No stored response found after waiting, proceeding to handle request`);
             // You might want to handle this case depending on your application's needs
           }
-        }, 2000);  // Wait for 500ms before re-checking
+        }, 10000);  // Wait for 10 secs before re-checking
 
         return; // Exit the current execution to wait
       } else {

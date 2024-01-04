@@ -15,6 +15,7 @@ import 'websocket-polyfill'
 
 import { Firestore } from '@google-cloud/firestore';
 
+const { v4: uuidv4 } = require('uuid');
 
 
 import dotenv from 'dotenv';
@@ -53,8 +54,8 @@ let options = {
 }
 request.get(options, function (error, response, body) {
   body.map(item => {
-    if(item.rpc[0]){
-      rpcNodes[Number(item.chainId)] = item.rpc[0].replace("${INFURA_API_KEY}",process.env.INFURA_API_KEY).replace("${ALCHEMY_API_KEY}",process.env.ALCHEMY_API_KEY);
+    if (item.rpc[0]) {
+      rpcNodes[Number(item.chainId)] = item.rpc[0].replace("${INFURA_API_KEY}", process.env.INFURA_API_KEY).replace("${ALCHEMY_API_KEY}", process.env.ALCHEMY_API_KEY);
     }
   });
 });
@@ -78,8 +79,12 @@ const ongoingRequests = new Map();
 
 app.use(async (req, res, next) => {
   try {
+    const requestId = uuidv4(); // Generate a unique identifier for the request+
+    console.log(`Request ID: ${requestId} - Received request from IP: ${req.ip}, Path: ${req.path}, Method: ${req.method}`);
+
+
     const idempotencyKey = req.headers['idempotency-key'];
-    console.log('Idempotency Key:', idempotencyKey);
+    console.log(`Request ID: ${requestId} - Idempotency Key:`, idempotencyKey);
 
     if (idempotencyKey) {
       const doc = await db.collection('test').doc(idempotencyKey).get();
@@ -88,7 +93,7 @@ app.use(async (req, res, next) => {
         console.log('Request already processed, returning stored response');
         return res.json(doc.data().responseData); // Return the stored response
       } else if (ongoingRequests.has(idempotencyKey)) {
-        console.log('Duplicate request detected, waiting for a bit before re-checking Firestore');
+        console.log(`Request ID: ${requestId} -- Duplicate request detected, waiting for a bit before re-checking Firestore`);
 
         setTimeout(async () => {
           const docAfterWait = await db.collection('test').doc(idempotencyKey).get();
@@ -96,10 +101,10 @@ app.use(async (req, res, next) => {
             console.log('Found stored response after waiting');
             return res.json(docAfterWait.data().responseData);
           } else {
-            console.log('No stored response found after waiting, proceeding to handle request');
+            console.log(`Request ID: ${requestId} -- No stored response found after waiting, proceeding to handle request`);
             // You might want to handle this case depending on your application's needs
           }
-        }, 1500);  // Wait for 500ms before re-checking
+        }, 2000);  // Wait for 500ms before re-checking
 
         return; // Exit the current execution to wait
       } else {
@@ -113,6 +118,11 @@ app.use(async (req, res, next) => {
       const { json: originalJson } = res;
       res.json = function (body) {
         originalJson.call(this, body);
+
+
+        console.log(`Response body for: ${requestId} `, body);
+
+        // if (res.statusCode === 200) {
         const data = {
           idempotencyKey,
           responseData: body,
@@ -122,10 +132,11 @@ app.use(async (req, res, next) => {
           .doc(idempotencyKey)
           .set(data)
           .then(() => {
-            console.log('Data stored in Firestore');
+            console.log(`Request ID: ${requestId} -- Data stored in Firestore `);
             ongoingRequests.delete(idempotencyKey);
           })
           .catch((error) => console.error('Error storing data in Firestore:', error));
+        // }
       };
     }
 

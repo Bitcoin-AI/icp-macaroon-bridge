@@ -15,6 +15,7 @@ import 'websocket-polyfill'
 
 import { Firestore } from '@google-cloud/firestore';
 
+const { v4: uuidv4 } = require('uuid');
 
 
 import dotenv from 'dotenv';
@@ -64,8 +65,12 @@ const ongoingRequests = new Map();
 
 app.use(async (req, res, next) => {
   try {
+    const requestId = uuidv4(); // Generate a unique identifier for the request+
+    console.log(`Request ID: ${requestId} - Received request from IP: ${req.ip}, Path: ${req.path}, Method: ${req.method}`);
+
+
     const idempotencyKey = req.headers['idempotency-key'];
-    console.log('Idempotency Key:', idempotencyKey);
+    console.log(`Request ID: ${requestId} - Idempotency Key:`, idempotencyKey);
 
     if (idempotencyKey) {
       const doc = await db.collection('test').doc(idempotencyKey).get();
@@ -74,7 +79,7 @@ app.use(async (req, res, next) => {
         console.log('Request already processed, returning stored response');
         return res.json(doc.data().responseData); // Return the stored response
       } else if (ongoingRequests.has(idempotencyKey)) {
-        console.log('Duplicate request detected, waiting for a bit before re-checking Firestore');
+        console.log(`Request ID: ${requestId} -- Duplicate request detected, waiting for a bit before re-checking Firestore`);
 
         setTimeout(async () => {
           const docAfterWait = await db.collection('test').doc(idempotencyKey).get();
@@ -82,10 +87,10 @@ app.use(async (req, res, next) => {
             console.log('Found stored response after waiting');
             return res.json(docAfterWait.data().responseData);
           } else {
-            console.log('No stored response found after waiting, proceeding to handle request');
+            console.log(`Request ID: ${requestId} -- No stored response found after waiting, proceeding to handle request`);
             // You might want to handle this case depending on your application's needs
           }
-        }, 500);  // Wait for 500ms before re-checking
+        }, 2000);  // Wait for 500ms before re-checking
 
         return; // Exit the current execution to wait
       } else {
@@ -100,21 +105,24 @@ app.use(async (req, res, next) => {
       res.json = function (body) {
         originalJson.call(this, body);
 
-        if (res.statusCode === 200) {
-          const data = {
-            idempotencyKey,
-            responseData: body,
-          };
 
-          db.collection('test')
-            .doc(idempotencyKey)
-            .set(data)
-            .then(() => {
-              console.log('Data stored in Firestore');
-              ongoingRequests.delete(idempotencyKey);
-            })
-            .catch((error) => console.error('Error storing data in Firestore:', error));
-        }
+        console.log(`Response body for: ${requestId} `, body);
+
+        // if (res.statusCode === 200) {
+        const data = {
+          idempotencyKey,
+          responseData: body,
+        };
+
+        db.collection('test')
+          .doc(idempotencyKey)
+          .set(data)
+          .then(() => {
+            console.log(`Request ID: ${requestId} -- Data stored in Firestore `);
+            ongoingRequests.delete(idempotencyKey);
+          })
+          .catch((error) => console.error('Error storing data in Firestore:', error));
+        // }
       };
     }
 
@@ -294,7 +302,7 @@ app.post('/payInvoice', async (req, res) => {
     let message = req.body.payment_request;
     const messageHash = ethers.utils.keccak256(Buffer.from(message));
 
-    message = message.substring( message.indexOf( "lntb" ), message.length );
+    message = message.substring(message.indexOf("lntb"), message.length);
     console.log(`Preparing to check ${message}`)
     // Define a list of expected addresses
     const expectedAddresses = [
@@ -415,36 +423,36 @@ app.post('/payInvoice', async (req, res) => {
 
 app.post('/payBlockchainTx', (req, res) => {
   try {
-      const sendTxPayload = req.body;
-      const idempotencyKey = req.headers['idempotency-key'];
+    const sendTxPayload = req.body;
+    const idempotencyKey = req.headers['idempotency-key'];
 
-      console.log('Idempotency Key:', idempotencyKey);
-      console.log('Sending tx:', JSON.stringify(sendTxPayload));
+    console.log('Idempotency Key:', idempotencyKey);
+    console.log('Sending tx:', JSON.stringify(sendTxPayload));
 
 
-      const rskNodeUrl = 'https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/';
-      const options = {
-          url: rskNodeUrl,
-          headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-          },
-          body: JSON.stringify(sendTxPayload)
-      };
+    const rskNodeUrl = 'https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/';
+    const options = {
+      url: rskNodeUrl,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(sendTxPayload)
+    };
 
-      request.post(options, (error, response, body) => {
-          if (error) {
-              console.error('Error:', error);
-              res.status(500).json({ error: 'An error occurred while processing the transaction' });
-              return;
-          }
+    request.post(options, (error, response, body) => {
+      if (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'An error occurred while processing the transaction' });
+        return;
+      }
 
-          console.log('Transaction processed, returning response to client');
-          res.json(JSON.parse(body));
-      });
+      console.log('Transaction processed, returning response to client');
+      res.json(JSON.parse(body));
+    });
   } catch (error) {
-      console.error('Error:', error);
-      res.status(500).json({ error: 'An error occurred while processing the transaction' });
+    console.error('Error:', error);
+    res.status(500).json({ error: 'An error occurred while processing the transaction' });
   }
 });
 
@@ -452,36 +460,36 @@ app.post('/payBlockchainTx', (req, res) => {
 
 app.post('/payBlockchainTx', (req, res) => {
   try {
-      const sendTxPayload = req.body;
-      const idempotencyKey = req.headers['idempotency-key'];
+    const sendTxPayload = req.body;
+    const idempotencyKey = req.headers['idempotency-key'];
 
-      console.log('Idempotency Key:', idempotencyKey);
-      console.log('Sending tx:', JSON.stringify(sendTxPayload));
+    console.log('Idempotency Key:', idempotencyKey);
+    console.log('Sending tx:', JSON.stringify(sendTxPayload));
 
 
-      const rskNodeUrl = 'https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/';
-      const options = {
-          url: rskNodeUrl,
-          headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-          },
-          body: JSON.stringify(sendTxPayload)
-      };
+    const rskNodeUrl = 'https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/';
+    const options = {
+      url: rskNodeUrl,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(sendTxPayload)
+    };
 
-      request.post(options, (error, response, body) => {
-          if (error) {
-              console.error('Error:', error);
-              res.status(500).json({ error: 'An error occurred while processing the transaction' });
-              return;
-          }
+    request.post(options, (error, response, body) => {
+      if (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'An error occurred while processing the transaction' });
+        return;
+      }
 
-          console.log('Transaction processed, returning response to client');
-          res.json(JSON.parse(body));
-      });
+      console.log('Transaction processed, returning response to client');
+      res.json(JSON.parse(body));
+    });
   } catch (error) {
-      console.error('Error:', error);
-      res.status(500).json({ error: 'An error occurred while processing the transaction' });
+    console.error('Error:', error);
+    res.status(500).json({ error: 'An error occurred while processing the transaction' });
   }
 });
 
@@ -489,36 +497,36 @@ app.post('/payBlockchainTx', (req, res) => {
 
 app.post('/getEvents', (req, res) => {
   try {
-      const sendTxPayload = req.body;
-      const idempotencyKey = req.headers['idempotency-key'];
+    const sendTxPayload = req.body;
+    const idempotencyKey = req.headers['idempotency-key'];
 
-      console.log('Idempotency Key:', idempotencyKey);
-      console.log('Sending tx:', JSON.stringify(sendTxPayload));
+    console.log('Idempotency Key:', idempotencyKey);
+    console.log('Sending tx:', JSON.stringify(sendTxPayload));
 
 
-      const rskNodeUrl = 'https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/';
-      const options = {
-          url: rskNodeUrl,
-          headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-          },
-          body: JSON.stringify(sendTxPayload)
-      };
+    const rskNodeUrl = 'https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/';
+    const options = {
+      url: rskNodeUrl,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(sendTxPayload)
+    };
 
-      request.post(options, (error, response, body) => {
-          if (error) {
-              console.error('Error:', error);
-              res.status(500).json({ error: 'An error occurred while processing the transaction' });
-              return;
-          }
+    request.post(options, (error, response, body) => {
+      if (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'An error occurred while processing the transaction' });
+        return;
+      }
 
-          console.log('Transaction processed, returning response to client');
-          res.json(JSON.parse(body));
-      });
+      console.log('Transaction processed, returning response to client');
+      res.json(JSON.parse(body));
+    });
   } catch (error) {
-      console.error('Error:', error);
-      res.status(500).json({ error: 'An error occurred while processing the transaction' });
+    console.error('Error:', error);
+    res.status(500).json({ error: 'An error occurred while processing the transaction' });
   }
 });
 
@@ -526,36 +534,36 @@ app.post('/getEvents', (req, res) => {
 
 app.post('/interactWithNode', (req, res) => {
   try {
-      const sendTxPayload = req.body;
-      const idempotencyKey = req.headers['idempotency-key'];
+    const sendTxPayload = req.body;
+    const idempotencyKey = req.headers['idempotency-key'];
 
-      console.log('Idempotency Key:', idempotencyKey);
-      console.log('Sending tx:', JSON.stringify(sendTxPayload));
+    console.log('Idempotency Key:', idempotencyKey);
+    console.log('Sending tx:', JSON.stringify(sendTxPayload));
 
 
-      const rskNodeUrl = 'https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/';
-      const options = {
-          url: rskNodeUrl,
-          headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-          },
-          body: JSON.stringify(sendTxPayload)
-      };
+    const rskNodeUrl = 'https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/';
+    const options = {
+      url: rskNodeUrl,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(sendTxPayload)
+    };
 
-      request.post(options, (error, response, body) => {
-          if (error) {
-              console.error('Error:', error);
-              res.status(500).json({ error: 'An error occurred while processing the transaction' });
-              return;
-          }
+    request.post(options, (error, response, body) => {
+      if (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'An error occurred while processing the transaction' });
+        return;
+      }
 
-          console.log('Transaction processed, returning response to client');
-          res.json(JSON.parse(body));
-      });
+      console.log('Transaction processed, returning response to client');
+      res.json(JSON.parse(body));
+    });
   } catch (error) {
-      console.error('Error:', error);
-      res.status(500).json({ error: 'An error occurred while processing the transaction' });
+    console.error('Error:', error);
+    res.status(500).json({ error: 'An error occurred while processing the transaction' });
   }
 });
 

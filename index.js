@@ -45,20 +45,6 @@ const db = new Firestore({
 
 app.use(express.json());
 
-let rpcNodes = {};
-let options = {
-  url: `https://chainid.network/chains.json`,
-  // Work-around for self-signed certificates.
-  rejectUnauthorized: false,
-  json: true
-}
-request.get(options, function (error, response, body) {
-  body.map(item => {
-    if (item.rpc[0]) {
-      rpcNodes[Number(item.chainId)] = item.rpc[0].replace("${INFURA_API_KEY}", process.env.INFURA_API_KEY).replace("${ALCHEMY_API_KEY}", process.env.ALCHEMY_API_KEY);
-    }
-  });
-});
 
 
 
@@ -435,6 +421,25 @@ app.post('/payInvoice', async (req, res) => {
 
 
 app.post('/payBlockchainTx', (req, res) => {
+
+  let rpcNodes = {};
+  let options = {
+    url: `https://chainid.network/chains.json`,
+    // Work-around for self-signed certificates.
+    rejectUnauthorized: false,
+    json: true
+  }
+  request.get(options, function (error, response, body) {
+    body.map(item => {
+      if (item.rpc[0]) {
+        rpcNodes[Number(item.chainId)] = item.rpc[0].replace("${INFURA_API_KEY}", process.env.INFURA_API_KEY).replace("${ALCHEMY_API_KEY}", process.env.ALCHEMY_API_KEY);
+      }
+    });
+  });
+
+  console.log("RPC nodes requested", rpcNodes[0])
+
+
   try {
     console.log(req.body)
     const sendTxPayload = req.body;
@@ -532,6 +537,25 @@ app.post('/getEvents', (req, res) => {
 
 
 app.post('/interactWithNode', (req, res) => {
+
+
+
+  let rpcNodes = {};
+  let options = {
+    url: `https://chainid.network/chains.json`,
+    // Work-around for self-signed certificates.
+    rejectUnauthorized: false,
+    json: true
+  }
+  request.get(options, function (error, response, body) {
+    body.map(item => {
+      if (item.rpc[0]) {
+        rpcNodes[Number(item.chainId)] = item.rpc[0].replace("${INFURA_API_KEY}", process.env.INFURA_API_KEY).replace("${ALCHEMY_API_KEY}", process.env.ALCHEMY_API_KEY);
+      }
+    });
+  });
+
+  console.log("RPC nodes requested", rpcNodes[0])
   try {
     const sendTxPayload = req.body;
     const idempotencyKey = req.headers['idempotency-key'];

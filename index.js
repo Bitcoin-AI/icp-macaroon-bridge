@@ -494,8 +494,6 @@ app.post('/payBlockchainTx', async (req, res) => {
   });
 
 
-});
-
 app.post('/getEvents', (req, res) => {
   try {
     const sendTxPayload = req.body;

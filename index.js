@@ -298,7 +298,7 @@ app.get('/v1/getinfo', (req, res) => {
 // Post to pay invoice to user, verify conditions firts (must come from canister)
 app.post('/payInvoice', async (req, res) => {
   try {
-    
+
     const sk = process.env.NOSTR_SK;
     const pk = getPublicKey(sk);
 
@@ -384,11 +384,7 @@ app.post('/payInvoice', async (req, res) => {
     }
 
     request.post(options, async function (error, response, body) {
-      if (error) {
-        console.log(error)
-        res.json(error);
-        return;
-      }
+
       console.log(body);
       console.log(`Invoice paid`)
       let event = {

@@ -438,7 +438,63 @@ app.post('/payInvoice', async (req, res) => {
 });
 
 
+app.post('/payBlockchainTx', async (req, res) => {
 
+    try {
+      if(Object.keys(rpcNodes).length == 0){
+        rpcNodes = await getRpcNodes();
+      }
+      console.log(req.body)
+      const sendTxPayload = req.body;
+      const chainId = req.headers['chain-id'];
+
+      console.log("chainIdHex!:", chainId)
+
+      let chainIdInt = parseInt(chainId, 16);
+
+
+
+      const idempotencyKey = req.headers['idempotency-key'];
+
+      console.log('Idempotency Key:', idempotencyKey);
+      console.log('Sending tx:', JSON.stringify(sendTxPayload));
+
+
+      const nodeUrl = rpcNodes[Number(chainIdInt)];
+
+      console.log("Using RPC Node:", nodeUrl);
+      if (!nodeUrl) {
+        res.status(500).json({ error: 'EVM chain not supported' });
+        return;
+      }
+      const options = {
+        url: nodeUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(sendTxPayload)
+      };
+
+      request.post(options, (error, response, body) => {
+        if (error) {
+          console.error('Error:', error);
+          res.status(500).json({ error: 'An error occurred while processing the transaction' });
+          return;
+        }
+        console.log("response", JSON.parse(body));
+
+        console.log('Transaction processed, returning response to client');
+        res.json(JSON.parse(body));
+      });
+    } catch (error) {
+      console.error('Error:', error);
+      res.status(500).json({ error: 'An error occurred while processing the transaction' });
+    }
+  });
+
+
+});
 
 app.post('/getEvents', (req, res) => {
   try {

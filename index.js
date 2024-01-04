@@ -323,7 +323,7 @@ app.post('/payInvoice', async (req, res) => {
     const signatureBase = "0x" + req.headers.signature;
     let message = req.body.payment_request;
     console.log(`Invoice to be paid: ${message}`);
-
+    
     //message = message.substring(message.indexOf("lntb"), message.length - 1);
     const messageHash = ethers.utils.keccak256(Buffer.from(message));
     console.log(`Preparing to check ${message}`)
@@ -383,10 +383,11 @@ app.post('/payInvoice', async (req, res) => {
     }
 
     // Pay Invoice and store hash of signature at nostr
-    console.log(`Paying invoice`)
+    console.log(`Paying invoice`);
+    const url = `https://${process.env.REST_HOST}/v2/router/send`;
     let options = {
-      url: `https://${process.env.REST_HOST}/v2/router/send`,
       // Work-around for self-signed certificates.
+      url: url,
       rejectUnauthorized: false,
       json: true,
       headers: {
@@ -399,32 +400,35 @@ app.post('/payInvoice', async (req, res) => {
       }
     }
 
-    request.post(options, async function (error, response, body) {
-      if (error) {
-        console.log(error)
-        res.json(error);
+    const response = await request.post(options, async function (error, response, body) {
+      if (error || body.error) {
+        console.log(error ? error : body.error)
+        res.json(error ? error : JSON.stringify(body.error));
         return;
       }
       console.log(body);
-      console.log(`Invoice paid`)
-      let event = {
-        kind: 1,
-        pubkey: pk,
-        created_at: Math.floor(Date.now() / 1000),
-        tags: [
-          ['t', messageHash]
-        ],
-        content: `Paid ${message}`
+      if(body.indexOf("SUCCEEDED") !== 0){
+        console.log(`Lightning Payment Success`);
+
+        let event = {
+          kind: 1,
+          pubkey: pk,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [
+            ['t', messageHash]
+          ],
+          content: `Paid ${message}`
+        }
+
+        event.id = getEventHash(event);
+        event.sig = getSignature(event, sk);
+        console.log(`Publishing in nostr`)
+
+        let pubs = pool.publish(relays, event);
+
+        res.json(body);
+        return;
       }
-
-      event.id = getEventHash(event);
-      event.sig = getSignature(event, sk);
-      console.log(`Publishing in nostr`)
-
-      let pubs = pool.publish(relays, event);
-      console.log(`Done`)
-      res.json(body);
-      return;
 
     });
 

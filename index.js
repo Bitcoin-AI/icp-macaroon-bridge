@@ -1,4 +1,5 @@
 import express from 'express';
+import axios from 'axios';
 import request from 'request';
 import { ethers } from 'ethers'
 import { Buffer } from 'buffer';
@@ -45,8 +46,25 @@ const db = new Firestore({
 
 app.use(express.json());
 
+let rpcNodes = {};
 
-
+const getRpcNodes = async () => {
+  const url = `https://chainid.network/chains.json`;
+  let options = {    // Work-around for self-signed certificates.
+    rejectUnauthorized: false,
+    json: true
+  }
+  const response = await axios.get(url,options);
+  const body = response.data;
+  body.map(item => {
+    if (item.rpc[0]) {
+      rpcNodes[Number(item.chainId)] = item.rpc[0].replace("${INFURA_API_KEY}", process.env.INFURA_API_KEY).replace("${ALCHEMY_API_KEY}", process.env.ALCHEMY_API_KEY);
+    }
+  });
+  console.log(`Got total of ${Object.keys(rpcNodes).length} rpc nodes`);
+  console.log(`RPC node goerli: 0x05 - ${rpcNodes[0x05]}`);
+  return(rpcNodes);
+};
 
 const relays = [
   'wss://relay.damus.io',
@@ -84,7 +102,7 @@ app.use(async (req, res, next) => {
         setTimeout(async () => {
           const docAfterWait = await db.collection('test').doc(idempotencyKey).get();
           if (docAfterWait.exists) {
-            console.log(`Request ID: ${requestId} -- Found stored response after waiting`);
+            console.log('Found stored response after waiting');
             return res.json(docAfterWait.data().responseData);
           } else {
             console.log(`Request ID: ${requestId} -- No stored response found after waiting, proceeding to handle request`);
@@ -137,8 +155,9 @@ app.use(async (req, res, next) => {
 
 
 // Test Route
-app.get('/', (req, res) => {
+app.get('/', async (req, res) => {
   try {
+    rpcNodes = await getRpcNodes();
     let options = {
       url: `https://${process.env.REST_HOST}/v1/getinfo`,
       // Work-around for self-signed certificates.
@@ -420,79 +439,6 @@ app.post('/payInvoice', async (req, res) => {
 
 
 
-app.post('/payBlockchainTx', (req, res) => {
-
-  let rpcNodes = {};
-  let options = {
-    url: `https://chainid.network/chains.json`,
-    // Work-around for self-signed certificates.
-    rejectUnauthorized: false,
-    json: true
-  }
-  request.get(options, function (error, response, body) {
-    body.map(item => {
-      if (item.rpc[0]) {
-        rpcNodes[Number(item.chainId)] = item.rpc[0].replace("${INFURA_API_KEY}", process.env.INFURA_API_KEY).replace("${ALCHEMY_API_KEY}", process.env.ALCHEMY_API_KEY);
-      }
-    });
-
-    console.log("RPC nodes requested", rpcNodes[1])
-
-
-    try {
-      console.log(req.body)
-      const sendTxPayload = req.body;
-      const chainId = req.headers['chain-id'];
-
-      console.log("chainIdHex!:", chainId)
-
-      let chainIdInt = parseInt(chainId, 16);
-
-
-
-      const idempotencyKey = req.headers['idempotency-key'];
-
-      console.log('Idempotency Key:', idempotencyKey);
-      console.log('Sending tx:', JSON.stringify(sendTxPayload));
-
-
-      const nodeUrl = rpcNodes[Number(chainIdInt)];
-
-      console.log("Using RPC Node:", nodeUrl);
-      if (!nodeUrl) {
-        res.status(500).json({ error: 'EVM chain not supported' });
-        return;
-      }
-      const options = {
-        url: nodeUrl,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(sendTxPayload)
-      };
-
-      request.post(options, (error, response, body) => {
-        if (error) {
-          console.error('Error:', error);
-          res.status(500).json({ error: 'An error occurred while processing the transaction' });
-          return;
-        }
-        console.log("response", JSON.parse(body));
-
-        console.log('Transaction processed, returning response to client');
-        res.json(JSON.parse(body));
-      });
-    } catch (error) {
-      console.error('Error:', error);
-      res.status(500).json({ error: 'An error occurred while processing the transaction' });
-    }
-  });
-
-
-});
-
-
 
 app.post('/getEvents', (req, res) => {
   try {
@@ -538,78 +484,58 @@ app.post('/getEvents', (req, res) => {
 
 
 
-app.post('/interactWithNode', (req, res) => {
+app.post('/interactWithNode', async (req, res) => {
+  try {
+    const sendTxPayload = req.body;
+    const idempotencyKey = req.headers['idempotency-key'];
 
+    const chainId = req.headers['chain-id'];
 
+    console.log("chainIdHex!:", chainId)
 
-  let rpcNodes = {};
-  let options = {
-    url: `https://chainid.network/chains.json`,
-    // Work-around for self-signed certificates.
-    rejectUnauthorized: false,
-    json: true
-  }
-  request.get(options, function (error, response, body) {
-    body.map(item => {
-      if (item.rpc[0]) {
-        rpcNodes[Number(item.chainId)] = item.rpc[0].replace("${INFURA_API_KEY}", process.env.INFURA_API_KEY).replace("${ALCHEMY_API_KEY}", process.env.ALCHEMY_API_KEY);
-      }
-    });
+    let chainIdInt = parseInt(chainId, 16);
 
+    //Chain Id is hexadecimal converting to
 
-    console.log("RPC nodes requested", rpcNodes[1])
-    try {
-      const sendTxPayload = req.body;
-      const idempotencyKey = req.headers['idempotency-key'];
+    console.log('Idempotency Key:', idempotencyKey);
+    console.log('Sending tx:', JSON.stringify(sendTxPayload));
 
-      const chainId = req.headers['chain-id'];
+    console.log(sendTxPayload.chainId)
+    if(Object.keys(rpcNodes).length == 0){
+      rpcNodes = await getRpcNodes();
+    }
+    const nodeUrl = rpcNodes[Number(chainIdInt)];
 
-      console.log("chainIdHex!:", chainId)
+    console.log("Using RPC Node:", nodeUrl);
+    if (!nodeUrl) {
+      res.status(500).json({ error: 'EVM chain not supported' });
+      return;
+    }
+    const options = {
+      url: nodeUrl,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(sendTxPayload)
+    };
 
-      let chainIdInt = parseInt(chainId, 16);
-
-      //Chain Id is hexadecimal converting to
-
-      console.log('Idempotency Key:', idempotencyKey);
-      console.log('Sending tx:', JSON.stringify(sendTxPayload));
-
-      console.log(sendTxPayload.chainId)
-
-      const nodeUrl = rpcNodes[Number(chainIdInt)];
-
-      console.log("Using RPC Node:", nodeUrl);
-      if (!nodeUrl) {
-        res.status(500).json({ error: 'EVM chain not supported' });
+    request.post(options, (error, response, body) => {
+      if (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'An error occurred while processing the transaction' });
         return;
       }
-      const options = {
-        url: nodeUrl,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(sendTxPayload)
-      };
-
-      request.post(options, (error, response, body) => {
-        if (error) {
-          console.error('Error:', error);
-          res.status(500).json({ error: 'An error occurred while processing the transaction' });
-          return;
-        }
-        console.log(body);
-        console.log('Transaction processed, returning response to client');
-        res.json(JSON.parse(body));
-        return
-      });
-    } catch (error) {
-      console.error('Error:', error);
-      res.status(500).json({ error: 'An error occurred while processing the transaction' });
+      console.log(body);
+      console.log('Transaction processed, returning response to client');
+      res.json(JSON.parse(body));
       return
-    }
-  });
-
-
+    });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'An error occurred while processing the transaction' });
+    return
+  }
 });
 
 app.listen(process.env.PORT ? process.env.PORT : 8080, () => {

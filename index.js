@@ -99,7 +99,7 @@ app.use(async (req, res, next) => {
             console.log('No stored response found after waiting, proceeding to handle request');
             // You might want to handle this case depending on your application's needs
           }
-        }, 500);  // Wait for 500ms before re-checking
+        }, 1500);  // Wait for 500ms before re-checking
 
         return; // Exit the current execution to wait
       } else {
@@ -351,6 +351,21 @@ app.post('/payInvoice', async (req, res) => {
     }
 
 
+    const previousEvent = await pool.get(relays,
+      {
+        kinds: [1],
+        authors: [pk],
+        '#t': [messageHash]
+      }
+    );
+    console.log(`Checking if invoice was already published in nostr`)
+    if (previousEvent) {
+      res.json({
+        message: "Invoice already paid"
+      });
+      return;
+    }
+
     // Pay Invoice and store hash of signature at nostr
     console.log(`Paying invoice`)
     let options = {
@@ -369,9 +384,29 @@ app.post('/payInvoice', async (req, res) => {
     }
 
     request.post(options, async function (error, response, body) {
-
+      if (error) {
+        console.log(error)
+        res.json(error);
+        return;
+      }
       console.log(body);
       console.log(`Invoice paid`)
+      let event = {
+        kind: 1,
+        pubkey: pk,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [
+          ['t', messageHash]
+        ],
+        content: `Paid ${message}`
+      }
+
+      event.id = getEventHash(event);
+      event.sig = getSignature(event, sk);
+      console.log(`Publishing in nostr`)
+
+      let pubs = pool.publish(relays, event);
+      console.log(`Done`)
       res.json(body);
       return;
 

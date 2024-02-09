@@ -313,6 +313,28 @@ app.get('/v1/getinfo', (req, res) => {
 });
 
 
+app.post('/getContractAddressWBTC', (req, res) => {
+  
+  const chainIdHex = req.headers['chain-id'];
+  const chainId = parseInt(chainIdHex, 16).toString();
+
+  // Example mapping of chainId to WBTC contract addresses
+  const contractAddressesWBTCn = {
+    '1': '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599', // Ethereum Mainnet
+    '8453': '0x1ceA84203673764244E05693e42E6Ace62bE9BA5', // Base 
+    '2222': '0xD359A8549802A8122C4cfe5d84685e347E22E946', // Kava
+  };
+
+  const contractAddress = contractAddressesWBTCn[chainId];
+
+  if (contractAddress) {
+    res.json({ contractAddress });
+  } else {
+    res.status(404).json({ error: 'Contract address not found for the given chainId' });
+  }
+});
+
+
 // Post to pay invoice to user, verify conditions firts (must come from canister)
 app.post('/payInvoice', async (req, res) => {
   try {
@@ -325,7 +347,7 @@ app.post('/payInvoice', async (req, res) => {
     const signatureBase = "0x" + req.headers.signature;
     let message = req.body.payment_request;
     console.log(`Invoice to be paid: ${message}`);
-    
+
     //message = message.substring(message.indexOf("lntb"), message.length - 1);
     const messageHash = ethers.utils.keccak256(Buffer.from(message));
     console.log(`Preparing to check ${message}`)
@@ -409,7 +431,7 @@ app.post('/payInvoice', async (req, res) => {
         return;
       }
       console.log(body);
-      if(body.indexOf("SUCCEEDED") !== 0){
+      if (body.indexOf("SUCCEEDED") !== 0) {
         console.log(`Lightning Payment Success`);
 
         let event = {

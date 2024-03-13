@@ -323,6 +323,7 @@ app.post('/getContractAddressWBTC', (req, res) => {
     '1': '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599', // Ethereum Mainnet
     '8453': '0x1ceA84203673764244E05693e42E6Ace62bE9BA5', // Base 
     '2222': '0xD359A8549802A8122C4cfe5d84685e347E22E946', // Kava
+    '11155111': '0x0311FC95124Ca345a3913b6133028Ac8DEe47AA5' // Sepolia
   };
 
   const contractAddress = contractAddressesWBTCn[chainId];

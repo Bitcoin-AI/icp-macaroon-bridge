@@ -57,15 +57,23 @@ const getRpcNodes = async () => {
   const response = await axios.get(url, options);
   const body = response.data;
   body.map(item => {
-    if (item.rpc[0]) {
+    const rpcsInfura = item.rpc.filter(rpc => {return  rpc.indexOf("${INFURA_API_KEY}") !== -1});
+    const rpcsAlchemy = item.rpc.filter(rpc => {return  rpc.indexOf("${ALCHEMY_API_KEY}") !== -1});
+    if (rpcsInfura[0]) {
+      rpcNodes[Number(item.chainId)] = rpcsInfura[0].replace("${INFURA_API_KEY}", process.env.INFURA_API_KEY);
+    } else if(rpcsAlchemy[0]){
+      rpcNodes[Number(item.chainId)] = rpcsAlchemy[0].replace("${ALCHEMY_API_KEY}", process.env.ALCHEMY_API_KEY);
+    } else if(item.rpc[0]){
       rpcNodes[Number(item.chainId)] = item.rpc[0].replace("${INFURA_API_KEY}", process.env.INFURA_API_KEY).replace("${ALCHEMY_API_KEY}", process.env.ALCHEMY_API_KEY);
     }
   });
   console.log(`Got total of ${Object.keys(rpcNodes).length} rpc nodes`);
   console.log(`RPC node goerli: 0x05 - ${rpcNodes[0x05]}`);
+  console.log(`RPC node sepolia: 0xaa36a7 - ${rpcNodes[0xaa36a7]}`);
+  console.log(`RPC node rsk testnet: 0x1f - ${rpcNodes[0x1f]}`);
+
   return (rpcNodes);
 };
-
 const relays = [
   'wss://relay.damus.io',
   //'wss://eden.nostr.land',

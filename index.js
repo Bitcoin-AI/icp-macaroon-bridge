@@ -322,14 +322,14 @@ app.get('/v1/getinfo', (req, res) => {
 
 
 app.post('/getContractAddressWBTC', (req, res) => {
-  
+
   const chainIdHex = req.headers['chain-id'];
   const chainId = parseInt(chainIdHex, 16).toString();
 
   // Example mapping of chainId to WBTC contract addresses
   const contractAddressesWBTCn = {
     '1': '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599', // Ethereum Mainnet
-    '8453': '0x1ceA84203673764244E05693e42E6Ace62bE9BA5', // Base 
+    '8453': '0x1ceA84203673764244E05693e42E6Ace62bE9BA5', // Base
     '2222': '0xD359A8549802A8122C4cfe5d84685e347E22E946', // Kava
     '11155111': '0x0311FC95124Ca345a3913b6133028Ac8DEe47AA5' // Sepolia
   };
@@ -369,7 +369,8 @@ app.post('/payInvoice', async (req, res) => {
       '0x3cca770bbe348cfc53e3b6348c18363a14cf1d38'.toLowerCase(),
       '0x4d8f351b7417a19aa1f4cd9165658b30819cc48b'.toLowerCase(),
       '0xf71065787ff990802e3abe9042f572bdc3a1551f'.toLowerCase(),
-      '0xd230d37fe70596a6d73f6c1fa1a2ab1448cc31fe'.toLowerCase()
+      '0xd230d37fe70596a6d73f6c1fa1a2ab1448cc31fe'.toLowerCase(),
+      '0x58133d79f75cFb183E3E878A854835Ed34B2F532'.toLowerCase()
       // ... add more addresses as needed
     ];
 

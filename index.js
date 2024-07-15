@@ -370,7 +370,8 @@ app.post('/payInvoice', async (req, res) => {
       '0x4d8f351b7417a19aa1f4cd9165658b30819cc48b'.toLowerCase(),
       '0xf71065787ff990802e3abe9042f572bdc3a1551f'.toLowerCase(),
       '0xd230d37fe70596a6d73f6c1fa1a2ab1448cc31fe'.toLowerCase(),
-      '0x58133d79f75cFb183E3E878A854835Ed34B2F532'.toLowerCase()
+      '0x58133d79f75cFb183E3E878A854835Ed34B2F532'.toLowerCase(),
+      '0xba3e3155ab0ed9c053a5c8c5e25ddb3b764368c3'.toLowerCase()
       // ... add more addresses as needed
     ];
 

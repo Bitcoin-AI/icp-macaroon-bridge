@@ -320,6 +320,25 @@ app.get('/v1/getinfo', (req, res) => {
   });
 });
 
+app.get('/v1/balance/channels', (req, res) => {
+  const options = {
+    url: `https://${process.env.REST_HOST}/v1/balance/channels`,
+    rejectUnauthorized: false,
+    json: true,
+    headers: {
+      'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
+    },
+  };
+
+  request.get(options, (error, response, body) => {
+    if (error) {
+      res.status(500).json(error);
+      return;
+    }
+    res.json(body);
+  });
+});
+
 
 app.post('/getContractAddressWBTC', (req, res) => {
 

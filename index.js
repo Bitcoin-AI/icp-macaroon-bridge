@@ -12,6 +12,7 @@ import {
   getSignature
 } from 'nostr-tools'
 import 'websocket-polyfill'
+import cors from 'cors';
 
 
 import { Firestore } from '@google-cloud/firestore';
@@ -45,6 +46,8 @@ const db = new Firestore({
 
 
 app.use(express.json());
+app.use(cors())
+
 
 let rpcNodes = {};
 

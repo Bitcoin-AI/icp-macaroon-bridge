@@ -3,14 +3,8 @@ import axios from 'axios';
 import request from 'request';
 import { ethers } from 'ethers'
 import { Buffer } from 'buffer';
-import {
-  SimplePool,
-  nip19,
-  generatePrivateKey,
-  getPublicKey,
-  getEventHash,
-  getSignature
-} from 'nostr-tools'
+import { webln as providers } from "@getalby/sdk";
+
 import 'websocket-polyfill'
 import cors from 'cors';
 
@@ -21,6 +15,8 @@ import { v4 as uuidv4 } from 'uuid';
 
 
 import dotenv from 'dotenv';
+
+import bolt11 from './bolt11.js';
 
 
 dotenv.config({ path: './.env' });
@@ -77,20 +73,10 @@ const getRpcNodes = async () => {
 
   return (rpcNodes);
 };
-const relays = [
-  'wss://relay.damus.io',
-  //'wss://eden.nostr.land',
-  //'wss://nostr-pub.wellorder.net',
-  //'wss://relay.nostr.info',
-  //'wss://relay.snort.social',
-  //'wss://nostr-01.bolt.observer'
-]
 
-
-
-const pool = new SimplePool()
 
 const ongoingRequests = new Map();
+
 
 app.use(async (req, res, next) => {
   try {
@@ -171,18 +157,14 @@ app.use(async (req, res, next) => {
 app.get('/', async (req, res) => {
   try {
     rpcNodes = await getRpcNodes();
-    let options = {
-      url: `https://${process.env.REST_HOST}/v1/getinfo`,
-      // Work-around for self-signed certificates.
-      rejectUnauthorized: false,
-      json: true,
-      headers: {
-        'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
-      },
-    }
-    request.get(options, function (error, response, body) {
-      res.json(body)
+    const webln = new providers.NostrWebLNProvider({
+      nostrWalletConnectUrl: process.env.NWC_URI,
     });
+    await webln.enable();
+    const response = await webln.getInfo();
+      
+    webln.close();
+    res.json(response);
   } catch (err) {
     res.json(err)
   }
@@ -195,28 +177,9 @@ app.get('/v1/payreq/:payment_request', async (req, res) => {
 
     //const signatureBase = "0x" + req.headers.signature;
     const payment_request = req.params.payment_request;
+    const response = bolt11.decode(payment_request)
 
-    let options = {
-      url: `https://${process.env.REST_HOST}/v1/payreq/${payment_request}`,
-      // Work-around for self-signed certificates.
-      rejectUnauthorized: false,
-      json: true,
-      headers: {
-        'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
-      }
-    }
-
-    request.get(options, async function (error, response, body) {
-      console.log(body)
-      if (error) {
-        res.json(error);
-        return;
-      }
-      res.json(body);
-      return;
-    });
-
-
+    res.json(response);
 
   } catch (err) {
     console.log("ERROR:", err);
@@ -225,7 +188,7 @@ app.get('/v1/payreq/:payment_request', async (req, res) => {
   return;
 });
 
-app.post('/v1/invoices', (req, res) => {
+app.post('/v1/invoices', async (req, res) => {
 
   //const { value: amount, memo: evm_addr } = req.body;  // Updated this line
   const amount = req.body.value;
@@ -243,59 +206,54 @@ app.post('/v1/invoices', (req, res) => {
     return;
   }
 
-  const options = {
-    url: `https://${process.env.REST_HOST}/v1/invoices`,
-    rejectUnauthorized: false,
-    json: true,
-    headers: {
-      'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
-    },
-    body: {
-      value: amount.toString(),
-      memo: evm_addr,
-    }
-  };
+  try{
+    const webln = new providers.NostrWebLNProvider({
+      nostrWalletConnectUrl: process.env.NWC_URI,
+    });
+    await webln.enable();
+    const response = await webln.makeInvoice({
+      amount: amount, // in sats
+      defaultMemo: evm_addr,
+    });
+    
+    console.info(response);
+    
+    webln.close();
+    res.json(response);
+  } catch(err){
+    res.status(500).json(err)
+  }
 
-  request.post(options, (error, response, body) => {
-    if (error) {
-      res.status(500).json(error);
-      return;
-    }
-    console.log("Success invoice creation");
-    console.log(body);
-    res.json(body);
-  });
 });
 
 
 app.get('/v2/invoices/lookup', async (req, res) => {
   try {
-    const payment_hash = req.query.payment_hash;
+    const invoiceOrPaymentHash = req.query.payment_hash;
 
-    if (!payment_hash) {
+    if (!invoiceOrPaymentHash) {
       res.status(400).send({ "error": "payment_hash is required" });
       return;
     }
 
-    let options = {
-      url: `https://${process.env.REST_HOST}/v2/invoices/lookup?payment_hash=${payment_hash}`,
-      // Work-around for self-signed certificates.
-      rejectUnauthorized: false,
-      json: true,
-      headers: {
-        'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
-      }
-    }
-
-    request.get(options, async function (error, response, body) {
-      console.log(body)
-      if (error) {
-        res.status(500).json(error);
-        return;
-      }
-      res.json(body);
-      return;
+    const webln = new providers.NostrWebLNProvider({
+      nostrWalletConnectUrl: process.env.NWC_URI,
     });
+    await webln.enable();
+    const response = await webln.lookupInvoice({
+      // provide one of the below
+      paymentRequest: invoiceOrPaymentHash.startsWith("ln")
+        ? invoiceOrPaymentHash
+        : undefined,
+      paymentHash: !invoiceOrPaymentHash.startsWith("ln")
+        ? invoiceOrPaymentHash
+        : undefined,
+    });
+    
+    console.info(response);
+    
+    webln.close();
+    res.json(response);
   } catch (err) {
     console.log("ERROR:", err);
     res.status(500).json(err);
@@ -304,42 +262,39 @@ app.get('/v2/invoices/lookup', async (req, res) => {
 });
 
 
-app.get('/v1/getinfo', (req, res) => {
-  const options = {
-    url: `https://${process.env.REST_HOST}/v1/getinfo`,
-    rejectUnauthorized: false,
-    json: true,
-    headers: {
-      'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
-    },
-  };
+app.get('/v1/getinfo', async (req, res) => {
 
-  request.get(options, (error, response, body) => {
-    if (error) {
-      res.status(500).json(error);
-      return;
-    }
-    res.json(body);
-  });
+  try{
+    const webln = new providers.NostrWebLNProvider({
+      nostrWalletConnectUrl: process.env.NWC_URI,
+    });
+    await webln.enable();
+    const response = await webln.getInfo();
+    
+    console.info(response);
+    
+    webln.close();
+    res.json(response);
+  } catch(err){
+    res.status(500).json(err);
+  }
 });
 
-app.get('/v1/balance/channels', (req, res) => {
-  const options = {
-    url: `https://${process.env.REST_HOST}/v1/balance/channels`,
-    rejectUnauthorized: false,
-    json: true,
-    headers: {
-      'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
-    },
-  };
-
-  request.get(options, (error, response, body) => {
-    if (error) {
-      res.status(500).json(error);
-      return;
-    }
-    res.json(body);
-  });
+app.get('/v1/balance/channels', async (req, res) => {
+  try{
+    const webln = new providers.NostrWebLNProvider({
+      nostrWalletConnectUrl: process.env.NWC_URI,
+    });
+    await webln.enable();
+    const response = await webln.getBalance();
+    
+    console.info(response);
+    
+    webln.close();
+    res.json(response);
+  } catch(err){
+    res.status(500).json(err);
+  }
 });
 
 
@@ -369,9 +324,6 @@ app.post('/getContractAddressWBTC', (req, res) => {
 // Post to pay invoice to user, verify conditions firts (must come from canister)
 app.post('/payInvoice', async (req, res) => {
   try {
-
-    const sk = process.env.NOSTR_SK;
-    const pk = getPublicKey(sk);
 
     // Verify if request comes from icp canister
 
@@ -423,73 +375,16 @@ app.post('/payInvoice', async (req, res) => {
       return;
     }
 
-
-    const previousEvent = await pool.get(relays,
-      {
-        kinds: [1],
-        authors: [pk],
-        '#t': [messageHash]
-      }
-    );
-    console.log(`Checking if invoice was already published in nostr`)
-    if (previousEvent) {
-      res.json({
-        message: "Invoice already paid"
-      });
-      return;
-    }
-
-    // Pay Invoice and store hash of signature at nostr
-    console.log(`Paying invoice`);
-    const url = `https://${process.env.REST_HOST}/v2/router/send`;
-    let options = {
-      // Work-around for self-signed certificates.
-      url: url,
-      rejectUnauthorized: false,
-      json: true,
-      headers: {
-        'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
-      },
-      body: {
-        payment_request: message,
-        timeout_seconds: 300,
-        fee_limit_sat: 100
-      }
-    }
-
-    const response = await request.post(options, async function (error, response, body) {
-      if (error || body.error) {
-        console.log(error ? error : body.error)
-        res.json(error ? error : JSON.stringify(body.error));
-        return;
-      }
-      console.log(body);
-      if (body.indexOf("SUCCEEDED") !== 0) {
-        console.log(`Lightning Payment Success`);
-
-        let event = {
-          kind: 1,
-          pubkey: pk,
-          created_at: Math.floor(Date.now() / 1000),
-          tags: [
-            ['t', messageHash]
-          ],
-          content: `Paid ${message}`
-        }
-
-        event.id = getEventHash(event);
-        event.sig = getSignature(event, sk);
-        console.log(`Publishing in nostr`)
-
-        let pubs = pool.publish(relays, event);
-
-        res.json(body);
-        return;
-      }
-
+    const webln = new providers.NostrWebLNProvider({
+      nostrWalletConnectUrl: process.env.NWC_URI,
     });
-
-
+    await webln.enable();
+    const response = await webln.sendPayment(message);
+    
+    console.info(response);
+    
+    webln.close();
+    res.json(response);
 
   } catch (err) {
     console.log("ERROR:", err);

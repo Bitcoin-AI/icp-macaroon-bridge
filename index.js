@@ -1,25 +1,22 @@
 import express from 'express';
+import axios from 'axios';
 import request from 'request';
 import { ethers } from 'ethers'
 import { Buffer } from 'buffer';
-import {
-  SimplePool,
-  nip19,
-  generatePrivateKey,
-  getPublicKey,
-  getEventHash,
-  getSignature
-} from 'nostr-tools'
+import { webln as providers } from "@getalby/sdk";
+
 import 'websocket-polyfill'
+import cors from 'cors';
 
 
 import { Firestore } from '@google-cloud/firestore';
 
-const { v4: uuidv4 } = require('uuid');
+import { v4 as uuidv4 } from 'uuid';
 
 
 import dotenv from 'dotenv';
 
+import bolt11 from './bolt11.js';
 
 
 dotenv.config({ path: './.env' });
@@ -45,23 +42,41 @@ const db = new Firestore({
 
 
 app.use(express.json());
+app.use(cors())
 
 
+let rpcNodes = {};
 
+const getRpcNodes = async () => {
+  const url = `https://chainid.network/chains.json`;
+  let options = {    // Work-around for self-signed certificates.
+    rejectUnauthorized: false,
+    json: true
+  }
+  const response = await axios.get(url, options);
+  const body = response.data;
+  body.map(item => {
+    const rpcsInfura = item.rpc.filter(rpc => {return  rpc.indexOf("${INFURA_API_KEY}") !== -1});
+    const rpcsAlchemy = item.rpc.filter(rpc => {return  rpc.indexOf("${ALCHEMY_API_KEY}") !== -1});
+    if (rpcsInfura[0]) {
+      rpcNodes[Number(item.chainId)] = rpcsInfura[0].replace("${INFURA_API_KEY}", process.env.INFURA_API_KEY);
+    } else if(rpcsAlchemy[0]){
+      rpcNodes[Number(item.chainId)] = rpcsAlchemy[0].replace("${ALCHEMY_API_KEY}", process.env.ALCHEMY_API_KEY);
+    } else if(item.rpc[0]){
+      rpcNodes[Number(item.chainId)] = item.rpc[0].replace("${INFURA_API_KEY}", process.env.INFURA_API_KEY).replace("${ALCHEMY_API_KEY}", process.env.ALCHEMY_API_KEY);
+    }
+  });
+  console.log(`Got total of ${Object.keys(rpcNodes).length} rpc nodes`);
+  console.log(`RPC node goerli: 0x05 - ${rpcNodes[0x05]}`);
+  console.log(`RPC node sepolia: 0xaa36a7 - ${rpcNodes[0xaa36a7]}`);
+  console.log(`RPC node rsk testnet: 0x1f - ${rpcNodes[0x1f]}`);
 
+  return (rpcNodes);
+};
 
-const relays = [
-  'wss://relay.damus.io',
-  //'wss://eden.nostr.land',
-  //'wss://nostr-pub.wellorder.net',
-  //'wss://relay.nostr.info',
-  //'wss://relay.snort.social',
-  //'wss://nostr-01.bolt.observer'
-]
-
-const pool = new SimplePool()
 
 const ongoingRequests = new Map();
+
 
 app.use(async (req, res, next) => {
   try {
@@ -76,7 +91,7 @@ app.use(async (req, res, next) => {
       const doc = await db.collection('test').doc(idempotencyKey).get();
 
       if (doc.exists) {
-        console.log('Request already processed, returning stored response');
+        console.log(`Request ID: ${requestId}  --Request already processed, returning stored response`);
         return res.json(doc.data().responseData); // Return the stored response
       } else if (ongoingRequests.has(idempotencyKey)) {
         console.log(`Request ID: ${requestId} -- Duplicate request detected, waiting for a bit before re-checking Firestore`);
@@ -137,20 +152,17 @@ app.use(async (req, res, next) => {
 
 
 // Test Route
-app.get('/', (req, res) => {
+app.get('/', async (req, res) => {
   try {
-    let options = {
-      url: `https://${process.env.REST_HOST}/v1/getinfo`,
-      // Work-around for self-signed certificates.
-      rejectUnauthorized: false,
-      json: true,
-      headers: {
-        'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
-      },
-    }
-    request.get(options, function (error, response, body) {
-      res.json(body)
+    rpcNodes = await getRpcNodes();
+    const webln = new providers.NostrWebLNProvider({
+      nostrWalletConnectUrl: process.env.NWC_URI,
     });
+    await webln.enable();
+    const response = await webln.getInfo();
+      
+    webln.close();
+    res.json(response);
   } catch (err) {
     res.json(err)
   }
@@ -163,28 +175,9 @@ app.get('/v1/payreq/:payment_request', async (req, res) => {
 
     //const signatureBase = "0x" + req.headers.signature;
     const payment_request = req.params.payment_request;
+    const response = bolt11.decode(payment_request)
 
-    let options = {
-      url: `https://${process.env.REST_HOST}/v1/payreq/${payment_request}`,
-      // Work-around for self-signed certificates.
-      rejectUnauthorized: false,
-      json: true,
-      headers: {
-        'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
-      }
-    }
-
-    request.get(options, async function (error, response, body) {
-      console.log(body)
-      if (error) {
-        res.json(error);
-        return;
-      }
-      res.json(body);
-      return;
-    });
-
-
+    res.json(response);
 
   } catch (err) {
     console.log("ERROR:", err);
@@ -193,11 +186,12 @@ app.get('/v1/payreq/:payment_request', async (req, res) => {
   return;
 });
 
-app.post('/v1/invoices', (req, res) => {
+app.post('/v1/invoices', async (req, res) => {
 
-
-  const { value: amount, memo: evm_addr } = req.body;  // Updated this line
-
+  //const { value: amount, memo: evm_addr } = req.body;  // Updated this line
+  const amount = req.body.value;
+  const evm_addr = req.body.memo;
+  console.log("Request for invoice creation with amount " + amount + " and memo " + evm_addr);
   // Validate that amount and evm_addr are defined
   if (!amount || !evm_addr) {
     res.status(400).json({ error: 'Both amount and evm_addr are required' });
@@ -210,57 +204,54 @@ app.post('/v1/invoices', (req, res) => {
     return;
   }
 
-  const options = {
-    url: `https://${process.env.REST_HOST}/v1/invoices`,
-    rejectUnauthorized: false,
-    json: true,
-    headers: {
-      'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
-    },
-    body: {
-      value: amount.toString(),
-      memo: evm_addr,
-    }
-  };
+  try{
+    const webln = new providers.NostrWebLNProvider({
+      nostrWalletConnectUrl: process.env.NWC_URI,
+    });
+    await webln.enable();
+    const response = await webln.makeInvoice({
+      amount: amount, // in sats
+      defaultMemo: evm_addr,
+    });
+    
+    console.info(response);
+    
+    webln.close();
+    res.json(response);
+  } catch(err){
+    res.status(500).json(err)
+  }
 
-  request.post(options, (error, response, body) => {
-    if (error) {
-      res.status(500).json(error);
-      return;
-    }
-    res.json(body);
-  });
 });
 
 
 app.get('/v2/invoices/lookup', async (req, res) => {
   try {
-    const payment_hash = req.query.payment_hash;
+    const invoiceOrPaymentHash = req.query.payment_hash;
 
-    if (!payment_hash) {
+    if (!invoiceOrPaymentHash) {
       res.status(400).send({ "error": "payment_hash is required" });
       return;
     }
 
-    let options = {
-      url: `https://${process.env.REST_HOST}/v2/invoices/lookup?payment_hash=${payment_hash}`,
-      // Work-around for self-signed certificates.
-      rejectUnauthorized: false,
-      json: true,
-      headers: {
-        'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
-      }
-    }
-
-    request.get(options, async function (error, response, body) {
-      console.log(body)
-      if (error) {
-        res.status(500).json(error);
-        return;
-      }
-      res.json(body);
-      return;
+    const webln = new providers.NostrWebLNProvider({
+      nostrWalletConnectUrl: process.env.NWC_URI,
     });
+    await webln.enable();
+    const response = await webln.lookupInvoice({
+      // provide one of the below
+      paymentRequest: invoiceOrPaymentHash.startsWith("ln")
+        ? invoiceOrPaymentHash
+        : undefined,
+      paymentHash: !invoiceOrPaymentHash.startsWith("ln")
+        ? invoiceOrPaymentHash
+        : undefined,
+    });
+    
+    console.info(response);
+    
+    webln.close();
+    res.json(response);
   } catch (err) {
     console.log("ERROR:", err);
     res.status(500).json(err);
@@ -269,23 +260,62 @@ app.get('/v2/invoices/lookup', async (req, res) => {
 });
 
 
-app.get('/v1/getinfo', (req, res) => {
-  const options = {
-    url: `https://${process.env.REST_HOST}/v1/getinfo`,
-    rejectUnauthorized: false,
-    json: true,
-    headers: {
-      'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
-    },
+app.get('/v1/getinfo', async (req, res) => {
+
+  try{
+    const webln = new providers.NostrWebLNProvider({
+      nostrWalletConnectUrl: process.env.NWC_URI,
+    });
+    await webln.enable();
+    const response = await webln.getInfo();
+    
+    console.info(response);
+    
+    webln.close();
+    res.json(response);
+  } catch(err){
+    res.status(500).json(err);
+  }
+});
+
+app.get('/v1/balance/channels', async (req, res) => {
+  try{
+    const webln = new providers.NostrWebLNProvider({
+      nostrWalletConnectUrl: process.env.NWC_URI,
+    });
+    await webln.enable();
+    const response = await webln.getBalance();
+    
+    console.info(response);
+    
+    webln.close();
+    res.json(response);
+  } catch(err){
+    res.status(500).json(err);
+  }
+});
+
+
+app.post('/getContractAddressWBTC', (req, res) => {
+
+  const chainIdHex = req.headers['chain-id'];
+  const chainId = parseInt(chainIdHex, 16).toString();
+
+  // Example mapping of chainId to WBTC contract addresses
+  const contractAddressesWBTCn = {
+    '1': '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599', // Ethereum Mainnet
+    '8453': '0x1ceA84203673764244E05693e42E6Ace62bE9BA5', // Base
+    '2222': '0xD359A8549802A8122C4cfe5d84685e347E22E946', // Kava
+    '11155111': '0x0311FC95124Ca345a3913b6133028Ac8DEe47AA5' // Sepolia
   };
 
-  request.get(options, (error, response, body) => {
-    if (error) {
-      res.status(500).json(error);
-      return;
-    }
-    res.json(body);
-  });
+  const contractAddress = contractAddressesWBTCn[chainId];
+
+  if (contractAddress) {
+    res.json({ contractAddress });
+  } else {
+    res.status(404).json({ error: 'Contract address not found for the given chainId' });
+  }
 });
 
 
@@ -293,13 +323,13 @@ app.get('/v1/getinfo', (req, res) => {
 app.post('/payInvoice', async (req, res) => {
   try {
 
-    const sk = process.env.NOSTR_SK;
-    const pk = getPublicKey(sk);
-
     // Verify if request comes from icp canister
 
     const signatureBase = "0x" + req.headers.signature;
     let message = req.body.payment_request;
+    console.log(`Invoice to be paid: ${message}`);
+
+    //message = message.substring(message.indexOf("lntb"), message.length - 1);
     const messageHash = ethers.utils.keccak256(Buffer.from(message));
 
     message = message.substring(message.indexOf("lntb"), message.length);
@@ -347,71 +377,16 @@ app.post('/payInvoice', async (req, res) => {
       return;
     }
 
-
-    const previousEvent = await pool.get(relays,
-      {
-        kinds: [1],
-        authors: [pk],
-        '#t': [messageHash]
-      }
-    );
-    console.log(`Checking if invoice was already published in nostr`)
-    if (previousEvent) {
-      console.error("Invoice already paid");
-
-      res.json({
-        message: "Invoice already paid"
-      });
-      return;
-    }
-
-    // Pay Invoice and store hash of signature at nostr
-    console.log(`Paying invoice`)
-    let options = {
-      url: `https://${process.env.REST_HOST}/v2/router/send`,
-      // Work-around for self-signed certificates.
-      rejectUnauthorized: false,
-      json: true,
-      headers: {
-        'Grpc-Metadata-macaroon': process.env.MACAROON_HEX,
-      },
-      body: {
-        payment_request: message,
-        timeout_seconds: 300,
-        fee_limit_sat: 100
-      }
-    }
-
-    request.post(options, async function (error, response, body) {
-      if (error) {
-        console.log(error)
-        res.json(error);
-        return;
-      }
-      console.log(`Invoice paid`)
-
-      let event = {
-        kind: 1,
-        pubkey: pk,
-        created_at: Math.floor(Date.now() / 1000),
-        tags: [
-          ['t', messageHash]
-        ],
-        content: `Paid ${message}`
-      }
-
-      event.id = getEventHash(event);
-      event.sig = getSignature(event, sk);
-      console.log(`Publishing in nostr`)
-
-      let pubs = pool.publish(relays, event);
-      console.log(`Done`)
-
-      res.json(body);
-      return;
+    const webln = new providers.NostrWebLNProvider({
+      nostrWalletConnectUrl: process.env.NWC_URI,
     });
-
-
+    await webln.enable();
+    const response = await webln.sendPayment(message);
+    
+    console.info(response);
+    
+    webln.close();
+    res.json(response);
 
   } catch (err) {
     console.log("ERROR:", err);
@@ -421,18 +396,37 @@ app.post('/payInvoice', async (req, res) => {
 });
 
 
-app.post('/payBlockchainTx', (req, res) => {
+app.post('/payBlockchainTx', async (req, res) => {
+
   try {
+    if (Object.keys(rpcNodes).length == 0) {
+      rpcNodes = await getRpcNodes();
+    }
+    console.log(req.body)
     const sendTxPayload = req.body;
+    const chainId = req.headers['chain-id'];
+
+    console.log("chainIdHex!:", chainId)
+
+    let chainIdInt = parseInt(chainId, 16);
+
+
+
     const idempotencyKey = req.headers['idempotency-key'];
 
     console.log('Idempotency Key:', idempotencyKey);
     console.log('Sending tx:', JSON.stringify(sendTxPayload));
 
 
-    const rskNodeUrl = 'https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/';
+    const nodeUrl = rpcNodes[Number(chainIdInt)];
+
+    console.log("Using RPC Node:", nodeUrl);
+    if (!nodeUrl) {
+      res.status(500).json({ error: 'EVM chain not supported' });
+      return;
+    }
     const options = {
-      url: rskNodeUrl,
+      url: nodeUrl,
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -446,6 +440,7 @@ app.post('/payBlockchainTx', (req, res) => {
         res.status(500).json({ error: 'An error occurred while processing the transaction' });
         return;
       }
+      console.log("response", JSON.parse(body));
 
       console.log('Transaction processed, returning response to client');
       res.json(JSON.parse(body));
@@ -455,44 +450,6 @@ app.post('/payBlockchainTx', (req, res) => {
     res.status(500).json({ error: 'An error occurred while processing the transaction' });
   }
 });
-
-
-
-app.post('/payBlockchainTx', (req, res) => {
-  try {
-    const sendTxPayload = req.body;
-    const idempotencyKey = req.headers['idempotency-key'];
-
-    console.log('Idempotency Key:', idempotencyKey);
-    console.log('Sending tx:', JSON.stringify(sendTxPayload));
-
-
-    const rskNodeUrl = 'https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/';
-    const options = {
-      url: rskNodeUrl,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify(sendTxPayload)
-    };
-
-    request.post(options, (error, response, body) => {
-      if (error) {
-        console.error('Error:', error);
-        res.status(500).json({ error: 'An error occurred while processing the transaction' });
-        return;
-      }
-
-      console.log('Transaction processed, returning response to client');
-      res.json(JSON.parse(body));
-    });
-  } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ error: 'An error occurred while processing the transaction' });
-  }
-});
-
 
 
 app.post('/getEvents', (req, res) => {
@@ -503,10 +460,17 @@ app.post('/getEvents', (req, res) => {
     console.log('Idempotency Key:', idempotencyKey);
     console.log('Sending tx:', JSON.stringify(sendTxPayload));
 
+    let chainIdInt = parseInt(chainId, 16);
 
-    const rskNodeUrl = 'https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/';
+    const nodeUrl = rpcNodes[Number(chainIdInt)];
+
+    console.log("Using RPC Node:", nodeUrl);
+    if (!nodeUrl) {
+      res.status(500).json({ error: 'EVM chain not supported' });
+      return;
+    }
     const options = {
-      url: rskNodeUrl,
+      url: nodeUrl,
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -532,18 +496,35 @@ app.post('/getEvents', (req, res) => {
 
 
 
-app.post('/interactWithNode', (req, res) => {
+app.post('/interactWithNode', async (req, res) => {
   try {
     const sendTxPayload = req.body;
     const idempotencyKey = req.headers['idempotency-key'];
 
+    const chainId = req.headers['chain-id'];
+
+    console.log("chainIdHex!:", chainId)
+
+    let chainIdInt = parseInt(chainId, 16);
+
+    //Chain Id is hexadecimal converting to
+
     console.log('Idempotency Key:', idempotencyKey);
     console.log('Sending tx:', JSON.stringify(sendTxPayload));
 
+    console.log(sendTxPayload.chainId)
+    if (Object.keys(rpcNodes).length == 0) {
+      rpcNodes = await getRpcNodes();
+    }
+    const nodeUrl = rpcNodes[Number(chainIdInt)];
 
-    const rskNodeUrl = 'https://rsk.getblock.io/437f13d7-2175-4d2c-a8c4-5e45ef6f7162/testnet/';
+    console.log("Using RPC Node:", nodeUrl);
+    if (!nodeUrl) {
+      res.status(500).json({ error: 'EVM chain not supported' });
+      return;
+    }
     const options = {
-      url: rskNodeUrl,
+      url: nodeUrl,
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -557,13 +538,15 @@ app.post('/interactWithNode', (req, res) => {
         res.status(500).json({ error: 'An error occurred while processing the transaction' });
         return;
       }
-
+      console.log(body);
       console.log('Transaction processed, returning response to client');
       res.json(JSON.parse(body));
+      return
     });
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'An error occurred while processing the transaction' });
+    return
   }
 });
 
